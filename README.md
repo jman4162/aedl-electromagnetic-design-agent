@@ -128,22 +128,52 @@ tasks/t2-001-steered-beam-2bit/
   reference/solve.py # coordinate descent over the phase states; passes
 ```
 
-## Baseline
+## Calibration run (not a result)
 
-Claude Code (Sonnet 5) against `t2-001`, three independent attempts,
-2026-08-09. Requirement: sidelobes ≤ −14 dB.
+Claude Code (Sonnet 5) against `t2-001`, three attempts, 2026-08-10.
+Requirement: sidelobes ≤ −14 dB. Reported for calibration, not as a benchmark
+result: one task with no failing cell measures nothing about relative ability,
+and the caveats below limit what these numbers support.
 
-| attempt | outcome | sidelobes | directivity | turns | cost | wall |
+For scale, direct 2-bit quantization — the approach the task is designed to
+defeat — reaches −10.66 dB and fails.
+
+| attempt | outcome | sidelobes | directivity | turns | est. cost | wall |
 |---|---|---|---|---|---|---|
 | 1 | pass | −15.96 dB | 26.55 dBi | 42 | $1.83 | 855 s |
 | 2 | pass | −16.52 dB | 26.40 dBi | 32 | $1.06 | 406 s |
 | 3 | pass | −17.02 dB | 26.25 dBi | 27 | $0.93 | 291 s |
 
-3/3, with 2–3 dB of margin, matching or beating the reference solution's
-−16.72 dB. None of the three called into `phased-array-modeling`; each wrote its
-own array factor.
+Three of three passed, by 1.96, 2.52 and 3.02 dB. Only attempt 3 beat the
+reference solution's −16.72 dB; attempts 1 and 2 were 0.76 and 0.20 dB worse
+than it.
 
-Treat this as a floor rather than a headline. The task is now non-degenerate:
+Two measurement caveats that matter more than the pass rate:
+
+- **The scored metric is optimistically biased for optimized designs.** Read off
+  the task's 361×721 grid, the reference measures −16.72 dB; under continuous
+  local refinement it is −16.50 dB. Naive quantization shows only 0.003 dB of
+  such bias, but any design that sculpts nulls picks up 0.22–0.26 dB, because a
+  sculpted null is narrow enough to fall between samples. The bias is
+  non-monotonic in grid density, so simply refining the grid is not a fix. The
+  benchmark therefore over-credits exactly the designs it exists to
+  discriminate. Fixing this means scoring on a verification grid the agent is
+  not given.
+- **These attempts were not isolated.** They predate the reference-hiding fix,
+  and attempt 1's own transcript records that it re-ran the evaluator source
+  (`src/aedl/evaluators/array_pattern.py`) to check its work. Re-deriving the
+  metric is permitted, but it confirms the agent had this repository in reach
+  during a scored attempt, and `--output-format json` keeps no tool-call log
+  that could show whether it also opened `reference/`.
+
+None of the three recorded a call to an instrumented `phased-array-modeling`
+entry point. Attempt 1's claim to have re-run the evaluator is in tension with
+that, since the evaluator calls `compute_full_pattern`, so either the
+instrumentation missed the agent's interpreter or the claim is inaccurate. This
+is unresolved, and until it is, run-level physics-call counts should be read as
+best-effort only.
+
+Treat this as a floor rather than a headline. The task is non-degenerate:
 direct quantization fails at −10.7 dB, and no global phase rotation rescues it.
 But a frontier model clears it reliably, so discrimination between agents has to
 come from the harder tasks in `docs/roadmap.md`. These attempts also predate the
