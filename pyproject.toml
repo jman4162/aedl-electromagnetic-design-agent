@@ -41,6 +41,10 @@ dev = [
 ]
 # Tier-3 tasks score system-level architectures; not needed for Tier 2.
 systems = ["phased-array-systems>=0.9,<1.0"]
+# README figure generation. Pinned narrowly: matplotlib's SVG output is
+# byte-stable within a minor version, and CI compares committed figures byte
+# for byte.
+viz = ["matplotlib>=3.11,<3.12"]
 
 [project.urls]
 Homepage = "https://github.com/jman4162/aedl-electromagnetic-design-agent"

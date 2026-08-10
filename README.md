@@ -16,6 +16,10 @@ evaluator. Agents never grade themselves.
 Scope is deliberately narrow: RF/microwave-band electromagnetic design. General
 scientific-agent frameworks are a non-goal.
 
+| | |
+| --- | --- |
+| ![Two radiation patterns at 30 degrees steering: rounding phases onto the 2-bit grid leaves sidelobes above the requirement, while adding a constant 45 degrees to every element first leaves them well below it](https://raw.githubusercontent.com/jman4162/aedl-electromagnetic-design-agent/main/docs/_static/free-lunch.svg) | The first task was broken, and an agent found it in one run. Steering a centred array to 30° puts every ideal phase exactly half a quantization step off the 2-bit grid, so adding a constant 45°, which costs nothing physically, made every phase exactly representable. The quantization error the task was built around disappeared. |
+
 ## Status
 
 Pre-release. What works today: the task format, one Tier-2 evaluator, one
@@ -138,6 +142,10 @@ and the caveats below limit what these numbers support.
 For scale, direct 2-bit quantization — the approach the task is designed to
 defeat — reaches −10.66 dB and fails.
 
+| | |
+| --- | --- |
+| ![Peak sidelobe for three approaches against the minus 14 dB requirement: direct rounding and the best global phase rotation both reach minus 10.66 dB and fail, while greedy coordinate descent reaches minus 16.72 dB and passes](https://raw.githubusercontent.com/jman4162/aedl-electromagnetic-design-agent/main/docs/_static/recalibration.svg) | After retargeting to (27°, 10°) no global rotation helps: the best one still leaves 43° of residual against a 90° grid, and scores identically to plain rounding. The requirement now separates approaches instead of being satisfied by a change of phase reference. |
+
 | attempt | outcome | sidelobes | directivity | turns | est. cost | wall |
 |---|---|---|---|---|---|---|
 | 1 | pass | −15.96 dB | 26.55 dBi | 42 | $1.83 | 855 s |
@@ -159,6 +167,10 @@ Two measurement caveats that matter more than the pass rate:
   benchmark therefore over-credits exactly the designs it exists to
   discriminate. Fixing this means scoring on a verification grid the agent is
   not given.
+
+  | | |
+  | --- | --- |
+  | ![Error between the grid reading and continuous refinement, against grid density: direct rounding stays at minus 0.003 dB while coordinate descent reads 0.189 dB better than it actually achieves, peaking at 0.227 dB before falling](https://raw.githubusercontent.com/jman4162/aedl-electromagnetic-design-agent/main/docs/_static/grid-bias.svg) | Direct rounding has broad sidelobes that no grid misses. An optimized design's residual peaks are narrow enough to fall between samples, so the grid reports a better number than the design achieves, and refining the grid does not correct it monotonically. |
 - **These attempts were not isolated.** They predate the reference-hiding fix,
   and attempt 1's own transcript records that it re-ran the evaluator source
   (`src/aedl/evaluators/array_pattern.py`) to check its work. Re-deriving the
@@ -178,6 +190,11 @@ direct quantization fails at −10.7 dB, and no global phase rotation rescues it
 But a frontier model clears it reliably, so discrimination between agents has to
 come from the harder tasks in `docs/roadmap.md`. These attempts also predate the
 reference-hiding fix described above, so they cannot be certified uncontaminated.
+
+Figures are generated from the task and the reference solution by
+`scripts/generate_readme_figures.py`, which first asserts that its physics
+agrees with the evaluator. CI fails if they drift from the code that produced
+them.
 
 ## Task design rules
 

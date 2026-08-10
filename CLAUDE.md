@@ -5,8 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project status
 
 Pre-release. The strategic decision (Aug 2026): AEDL is a **benchmark-first,
-RF/microwave-band** project, meaning benchmark tasks and deterministic evaluators for
-AI design agents, not a general agentic-science framework.
+RF/microwave-band** project, scoped to benchmark tasks and deterministic
+evaluators for AI design agents. General agentic-science frameworks are out of
+scope.
 
 Phase 1 goal: 6 calibrated tasks across three tiers (element / aperture / system), a
 harness to score any coding agent, and a single-strong-agent baseline. The harness and

@@ -44,6 +44,15 @@ jobs:
           uv run aedl list
           uv run aedl --help > /dev/null
 
+      - name: README figures are current
+        # Deterministic by construction, so they can be compared directly. A
+        # committed figure that disagrees with the code is worse than no figure.
+        run: |
+          uv pip install -e ".[viz]"
+          uv run python scripts/generate_readme_figures.py
+          git diff --exit-code -- docs/_static/ \
+            || (echo "docs/_static is stale; run scripts/generate_readme_figures.py" && exit 1)
+
       - name: Build
         run: |
           uv build
