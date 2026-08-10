@@ -17,8 +17,23 @@ from aedl.harness.record import RunRecord, utc_stamp
 from aedl.registry import get_evaluator
 from aedl.spec import TaskSpec
 
-#: Variables that would leak the operator's session into the agent under test.
-_SCRUB_PREFIXES = ("CLAUDE", "CLAUDECODE", "AI_AGENT", "AEDL_")
+#: The only host variables an agent inherits unconditionally. Everything else
+#: must be declared by the adapter via `required_env`. Deliberately excludes
+#: SSH_AUTH_SOCK, every *_TOKEN / *_KEY, and the CLAUDE_* family (which would
+#: otherwise let a nested run inherit this session, or silently redirect auth
+#: to Bedrock/Vertex).
+BASE_ENV_ALLOWLIST: tuple[str, ...] = (
+    "PATH",
+    "HOME",
+    "USER",
+    "LOGNAME",
+    "SHELL",
+    "TMPDIR",
+    "LANG",
+    "LC_ALL",
+    "TERM",
+    "TZ",
+)
 
 
 class hidden_references:
@@ -124,8 +139,26 @@ def probe_agent_interpreter(env: dict[str, str], cwd: Path) -> dict[str, Any]:
         return {"error": f"{type(exc).__name__}: {exc}"}
 
 
-def _child_env(extra: dict[str, str] | None = None) -> dict[str, str]:
-    env = {k: v for k, v in os.environ.items() if not any(k.startswith(p) for p in _SCRUB_PREFIXES)}
+def build_child_env(adapter: AgentAdapter, extra: dict[str, str] | None = None) -> dict[str, str]:
+    """Construct the agent's environment from an allowlist.
+
+    A blacklist cannot be right here: anything not explicitly anticipated
+    passes through. A probe of this machine's shell found 32 of 41 variables
+    reaching the child, including `SSH_AUTH_SOCK` — a live agent-forwarding
+    socket, which would let an agent under test authenticate over SSH as the
+    operator. `ANTHROPIC_API_KEY`, `AWS_*`, `GH_TOKEN` and friends pass by
+    construction too.
+
+    So the agent gets a fixed base of variables a process needs to run at all,
+    plus exactly the credentials the chosen adapter declares in
+    `required_env`. Note that subscription auth needs none of the latter: macOS
+    reaches the keychain by uid and Linux reads a file under `$HOME`, so `HOME`
+    alone suffices.
+    """
+    env = {name: os.environ[name] for name in BASE_ENV_ALLOWLIST if name in os.environ}
+    for name in getattr(adapter, "required_env", ()):
+        if name in os.environ:
+            env[name] = os.environ[name]
     env.update(extra or {})
     return env
 
@@ -156,7 +189,7 @@ def run_task(
 
     work = ws.materialize(spec, isolation=isolation, parent=bundle)
     call_log = bundle / "calls.jsonl"
-    env = _child_env()
+    env = build_child_env(adapter)
     if instrumented:
         shim = instrument.write_payload(bundle / ".shim")
         env = instrument.build_env(env, shim, call_log)

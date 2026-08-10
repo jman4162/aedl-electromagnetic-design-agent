@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import statistics
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -75,7 +76,7 @@ def _fmt(value: object, spec: str = "", dash: str = "—") -> str:
 def runs_table(records: list[dict[str, Any]]) -> str:
     header = (
         "| run | task | agent | model | outcome | failed requirements | "
-        "turns | tokens out | cost USD | wall s | model calls |"
+        "turns | tokens out | est. cost USD | wall s | model calls |"
     )
     rows = [header, "|" + "---|" * 11]
     for r in records:
@@ -99,7 +100,7 @@ def summary_table(records: list[dict[str, Any]]) -> str:
         grouped[(r.get("task_id", "?"), model_of(r))].append(r)
 
     rows = [
-        "| task | model | attempts | passed | pass rate | median cost USD |",
+        "| task | model | attempts | passed | pass rate | median est. cost USD |",
         "|" + "---|" * 6,
     ]
     for (task, agent), group in sorted(grouped.items()):
@@ -109,7 +110,7 @@ def summary_table(records: list[dict[str, Any]]) -> str:
             for r in group
             if isinstance(cost := (r.get("usage") or {}).get("cost_usd"), (int, float))
         )
-        median = costs[len(costs) // 2] if costs else None
+        median = statistics.median(costs) if costs else None
         rows.append(
             f"| {task} | {agent} | {len(group)} | {passed} | "
             f"{passed / len(group):.0%} | {_fmt(median, '.3f')} |"

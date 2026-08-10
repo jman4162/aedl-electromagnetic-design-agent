@@ -7,6 +7,9 @@ agent leaves behind.
 
 from __future__ import annotations
 
+import os
+import signal
+import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -38,8 +41,65 @@ class AgentRunInfo:
 
 class AgentAdapter(Protocol):
     name: str
+    #: Host environment variables this adapter needs passed through, beyond
+    #: the harness base allowlist. Keep it to credentials the agent genuinely
+    #: requires; everything listed here is visible to the agent.
+    required_env: tuple[str, ...]
 
     def run(self, workspace: Path, env: dict[str, str], timeout_s: int) -> AgentRunInfo: ...
+
+
+def run_subprocess(
+    cmd: list[str],
+    cwd: Path,
+    env: dict[str, str],
+    timeout_s: int,
+) -> tuple[int, str, str, bool]:
+    """Run an agent command, killing the whole process tree on timeout.
+
+    `subprocess.run(timeout=...)` kills only the direct child, so anything the
+    agent backgrounded keeps running: burning CPU, still writing to the
+    workspace, and able to read the reference once permissions are restored.
+    Starting a new session puts the child and its descendants in one process
+    group that can be signalled as a unit.
+
+    Returns (returncode, stdout, stderr, timed_out).
+    """
+    proc = subprocess.Popen(
+        cmd,
+        cwd=cwd,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout_s)
+        return proc.returncode, stdout, stderr, False
+    except subprocess.TimeoutExpired:
+        _terminate_group(proc)
+        stdout, stderr = proc.communicate()
+        return 124, stdout or "", (stderr or "") + f"\n[aedl] timed out after {timeout_s}s", True
+
+
+def _terminate_group(proc: subprocess.Popen[str]) -> None:
+    """SIGTERM the process group, then SIGKILL anything that ignores it."""
+    try:
+        pgid = os.getpgid(proc.pid)
+    except (ProcessLookupError, PermissionError):
+        proc.kill()
+        return
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(pgid, sig)
+        except (ProcessLookupError, PermissionError):
+            return
+        try:
+            proc.wait(timeout=10)
+            return
+        except subprocess.TimeoutExpired:
+            continue
 
 
 def as_text(value: object) -> str:

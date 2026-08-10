@@ -63,6 +63,9 @@ class RunRecord:
     #: The interpreter and library versions the agent itself reaches for, which
     #: need not match the harness environment that scores the result.
     agent_interpreter: dict[str, Any] = field(default_factory=dict)
+    #: How the agent authenticated. Subscription runs are not billed per token,
+    #: so their reported cost is an API-equivalent estimate, not money spent.
+    auth: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)

@@ -16,6 +16,7 @@ from aedl.harness.adapter import AgentRunInfo, AgentUsage, register_adapter
 
 class MockAdapter:
     name = "mock"
+    required_env: tuple[str, ...] = ()
 
     def __init__(self, behavior: Callable[[Path], None] | None = None, returncode: int = 0):
         self._behavior = behavior

@@ -304,3 +304,22 @@ def test_summary_table_of_empty_result():
 
     out = EvaluationResult(task_id="t", passed=True, requirements=()).summary_table()
     assert "no requirements" in out
+
+
+def test_median_cost_is_the_true_median_for_even_samples():
+    from aedl.harness.report import summary_table
+
+    recs = [
+        {"task_id": "t", "model": "m", "status": "pass", "usage": {"cost_usd": c}}
+        for c in (1.0, 3.0)
+    ]
+    # The upper-middle value (3.000) would be wrong; the median is 2.000.
+    assert "| 2.000 |" in summary_table(recs)
+
+
+def test_cost_column_is_labelled_as_an_estimate():
+    """Subscription runs are not billed per token; the figure is an estimate."""
+    from aedl.harness.report import runs_table, summary_table
+
+    assert "est. cost USD" in runs_table([])
+    assert "median est. cost USD" in summary_table([])
