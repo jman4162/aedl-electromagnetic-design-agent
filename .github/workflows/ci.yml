@@ -20,27 +20,29 @@ jobs:
         with:
           python-version: "3.12"
 
+      # setup-uv provisions a virtualenv and exports VIRTUAL_ENV; installing
+      # with --system instead would hit the runner's externally-managed Python.
       - name: Install
-        run: uv pip install --system -e ".[dev]"
+        run: uv pip install -e ".[dev]"
 
       - name: Lint
-        run: ruff check .
+        run: uv run ruff check .
 
       - name: Format check
-        run: ruff format --check .
+        run: uv run ruff format --check .
 
       - name: Type check
-        run: mypy
+        run: uv run mypy
 
       - name: Tests
-        run: pytest -q
+        run: uv run pytest -q
 
       # The console script must work without the PYTHONPATH workaround the
       # local dev notes describe; CI is the clean environment that proves it.
       - name: CLI smoke test
         run: |
-          aedl list
-          aedl --help > /dev/null
+          uv run aedl list
+          uv run aedl --help > /dev/null
 
       - name: Build
         run: |
