@@ -4,39 +4,36 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Early (v0). The strategic decision (Aug 2026): AEDL is a **benchmark-first,
-RF/microwave-band** project: benchmark tasks and deterministic evaluators for AI design
-agents, not a general agentic-science framework. Rationale and roadmap live in the
-planning docs:
+Pre-release. The strategic decision (Aug 2026): AEDL is a **benchmark-first,
+RF/microwave-band** project, meaning benchmark tasks and deterministic evaluators for
+AI design agents, not a general agentic-science framework.
 
-- `BACKGROUND_INFORMATION_v1.local.md` / `_v2.local.md`: private working notes
-  (gitignored via `*.local.md`); the original AEDL concept.
-- Phase 1 goal: 6 calibrated tasks across three tiers (element / aperture / system),
-  a harness to score any coding agent, and a single-strong-agent baseline. The
-  harness and one task exist; see `docs/roadmap.md` for what remains.
+Phase 1 goal: 6 calibrated tasks across three tiers (element / aperture / system), a
+harness to score any coding agent, and a single-strong-agent baseline. The harness and
+one task exist. `docs/roadmap.md` holds the rest, the rationale, and the calibration
+log of what agent runs have already invalidated.
 
 ## Commands
 
 ```bash
-.venv/bin/pip install -e ".[dev]"   # install (venv at .venv, Python 3.12)
-.venv/bin/pytest                    # run all tests
-.venv/bin/pytest tests/test_t2_001.py -k sidelobes   # run a single test
+.venv/bin/pip install -e ".[dev]"
+.venv/bin/pytest                                     # all tests
+.venv/bin/pytest tests/test_t2_001.py -k sidelobes   # one test
+.venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy
+scripts/slopcheck.sh                                 # prose linter, advisory
 
-PYTHONPATH=src .venv/bin/python -m aedl.cli list
-PYTHONPATH=src .venv/bin/python -m aedl.cli evaluate --task t2-001 --submission w.npz
-PYTHONPATH=src .venv/bin/python -m aedl.cli run --task t2-001 --agent claude --model sonnet
-PYTHONPATH=src .venv/bin/python -m aedl.cli report --runs-dir runs --out leaderboard.md
+.venv/bin/aedl list
+.venv/bin/aedl evaluate --task t2-001 --submission w.npz
+.venv/bin/aedl run --task t2-001 --agent claude --model sonnet
+.venv/bin/aedl report --runs-dir runs --out leaderboard.md
 ```
 
-`evaluate` exits 0 when all requirements pass, 1 otherwise.
+`evaluate` exits 0 when all requirements pass and 1 otherwise; `run` adds 2 for
+a run that produced no score (timeout, crash, no submission).
 
-**Environment quirk on this machine:** the editable install's
-`__editable__.aedl-0.0.1.pth` is not honored across shell invocations. `import
-aedl` works in the same shell as `pip install -e .` and fails afterwards, even
-though a byte-identical copy of the file under a different name works. Hence
-`PYTHONPATH=src` above and `pythonpath = ["src"]` in the pytest config. The
-`.venv/bin/aedl` console script is affected too. Worth fixing separately; it is
-not a repo defect.
+If `import aedl` fails outside pytest, the editable install's `.pth` is not
+being honored; `PYTHONPATH=src` is the workaround. The pytest config sets
+`pythonpath = ["src"]` so tests never depend on it.
 
 ## Architecture
 

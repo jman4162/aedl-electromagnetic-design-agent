@@ -24,6 +24,7 @@ import time
 from pathlib import Path
 
 import numpy as np
+import numpy.typing as npt
 import phased_array as pa
 
 from aedl.registry import register_evaluator
@@ -33,15 +34,23 @@ from aedl.spec import TaskSpec
 C0 = 299_792_458.0
 
 
-def _angular_separation_deg(theta1, phi1, theta2, phi2):
+def _angular_separation_deg(
+    theta1: npt.NDArray[np.float64] | float,
+    phi1: npt.NDArray[np.float64] | float,
+    theta2: npt.NDArray[np.float64] | float,
+    phi2: npt.NDArray[np.float64] | float,
+) -> npt.NDArray[np.float64]:
     """Great-circle angle between directions given in radians, result in degrees."""
-    dot = np.sin(theta1) * np.sin(theta2) * np.cos(phi1 - phi2) + np.cos(
-        theta1
-    ) * np.cos(theta2)
-    return np.degrees(np.arccos(np.clip(dot, -1.0, 1.0)))
+    dot = np.sin(theta1) * np.sin(theta2) * np.cos(phi1 - phi2) + np.cos(theta1) * np.cos(theta2)
+    separation: npt.NDArray[np.float64] = np.degrees(np.arccos(np.clip(dot, -1.0, 1.0)))
+    return separation
 
 
-def _directivity_dbi(theta_g, phi_g, pattern_db):
+def _directivity_dbi(
+    theta_g: npt.NDArray[np.float64],
+    phi_g: npt.NDArray[np.float64],
+    pattern_db: npt.NDArray[np.float64],
+) -> float:
     """Full-sphere directivity from a pattern in dB on a regular theta/phi grid.
 
     Local implementation: phased_array.compute_directivity calls np.trapz,
@@ -49,9 +58,7 @@ def _directivity_dbi(theta_g, phi_g, pattern_db):
     """
     power = 10.0 ** (pattern_db / 10.0)
     integrand = power * np.sin(theta_g)
-    total = np.trapezoid(
-        np.trapezoid(integrand, phi_g[0, :], axis=1), theta_g[:, 0], axis=0
-    )
+    total = np.trapezoid(np.trapezoid(integrand, phi_g[0, :], axis=1), theta_g[:, 0], axis=0)
     return float(10.0 * np.log10(4.0 * np.pi * np.max(power) / total))
 
 
@@ -63,8 +70,10 @@ def evaluate(spec: TaskSpec, submission: Path) -> EvaluationResult:
 
     wavelength = C0 / (float(arr["frequency_ghz"]) * 1e9)
     geom = pa.create_rectangular_array(
-        int(arr["nx"]), int(arr["ny"]),
-        dx=float(arr["dx_wl"]), dy=float(arr["dy_wl"]),
+        int(arr["nx"]),
+        int(arr["ny"]),
+        dx=float(arr["dx_wl"]),
+        dy=float(arr["dy_wl"]),
         wavelength=wavelength,
     )
     n = geom.n_elements
@@ -109,7 +118,10 @@ def evaluate(spec: TaskSpec, submission: Path) -> EvaluationResult:
         raise ValueError(f"unknown element model {element.get('model')!r}")
 
     theta, phi, pattern_db = pa.compute_full_pattern(
-        geom.x, geom.y, w, k,
+        geom.x,
+        geom.y,
+        w,
+        k,
         n_theta=int(spec.evaluator_params.get("n_theta", 361)),
         n_phi=int(spec.evaluator_params.get("n_phi", 721)),
         theta_range=(0.0, np.pi),
@@ -121,17 +133,13 @@ def evaluate(spec: TaskSpec, submission: Path) -> EvaluationResult:
     peak_idx = np.unravel_index(np.argmax(pattern_db), pattern_db.shape)
     peak_db = pattern_db[peak_idx]
     metrics["peak_direction_error_deg"] = float(
-        _angular_separation_deg(
-            theta_g[peak_idx], phi_g[peak_idx], target_theta, target_phi
-        )
+        _angular_separation_deg(theta_g[peak_idx], phi_g[peak_idx], target_theta, target_phi)
     )
 
     sep = _angular_separation_deg(theta_g, phi_g, target_theta, target_phi)
     exclusion = float(ctx["exclusion_radius_deg"])
     sidelobe_region = sep > exclusion
-    metrics["peak_sidelobe_level_db"] = float(
-        np.max(pattern_db[sidelobe_region]) - peak_db
-    )
+    metrics["peak_sidelobe_level_db"] = float(np.max(pattern_db[sidelobe_region]) - peak_db)
 
     metrics["directivity_dbi"] = _directivity_dbi(theta_g, phi_g, pattern_db)
 

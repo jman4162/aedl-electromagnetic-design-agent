@@ -1,5 +1,7 @@
 """Agent harness: run an agent against a task, score the artifact, record the cost."""
 
+# Importing the package registers the built-in adapters.
+from aedl.harness import adapters as _adapters  # noqa: F401
 from aedl.harness.adapter import (
     AgentAdapter,
     AgentRunInfo,
@@ -10,9 +12,6 @@ from aedl.harness.adapter import (
 )
 from aedl.harness.record import RunRecord
 from aedl.harness.run import run_task
-
-# Importing the package registers the built-in adapters.
-from aedl.harness import adapters as _adapters  # noqa: F401
 
 __all__ = [
     "AgentAdapter",

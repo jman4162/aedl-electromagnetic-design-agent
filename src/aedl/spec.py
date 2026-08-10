@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -19,9 +20,7 @@ class Requirement:
 
     def __post_init__(self) -> None:
         if (self.max is None) == (self.min is None):
-            raise ValueError(
-                f"requirement {self.id!r}: exactly one of max/min must be set"
-            )
+            raise ValueError(f"requirement {self.id!r}: exactly one of max/min must be set")
 
     def check(self, value: float) -> bool:
         if self.max is not None:
@@ -43,9 +42,9 @@ class TaskSpec:
     title: str
     summary: str
     evaluator: str
-    evaluator_params: dict = field(default_factory=dict)
-    context: dict = field(default_factory=dict)
-    deliverable: dict = field(default_factory=dict)
+    evaluator_params: dict[str, Any] = field(default_factory=dict)
+    context: dict[str, Any] = field(default_factory=dict)
+    deliverable: dict[str, Any] = field(default_factory=dict)
     requirements: tuple[Requirement, ...] = ()
     path: Path | None = None
 
@@ -69,8 +68,12 @@ def load_task(task_yaml: Path) -> TaskSpec:
         tier=int(raw["tier"]),
         title=raw["title"],
         summary=raw.get("summary", "").strip(),
-        evaluator=raw["evaluator"]["name"] if isinstance(raw["evaluator"], dict) else raw["evaluator"],
-        evaluator_params=raw["evaluator"].get("params", {}) if isinstance(raw["evaluator"], dict) else {},
+        evaluator=raw["evaluator"]["name"]
+        if isinstance(raw["evaluator"], dict)
+        else raw["evaluator"],
+        evaluator_params=raw["evaluator"].get("params", {})
+        if isinstance(raw["evaluator"], dict)
+        else {},
         context=raw.get("context", {}),
         deliverable=raw.get("deliverable", {}),
         requirements=reqs,

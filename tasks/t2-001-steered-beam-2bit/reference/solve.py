@@ -54,7 +54,8 @@ def solve(max_sweeps: int = 8, seed: int = 0) -> np.ndarray:
         np.arccos(
             np.clip(
                 np.sin(tg) * np.sin(t0) * np.cos(pg - p0) + np.cos(tg) * np.cos(t0),
-                -1.0, 1.0,
+                -1.0,
+                1.0,
             )
         )
     )
@@ -69,9 +70,7 @@ def solve(max_sweeps: int = 8, seed: int = 0) -> np.ndarray:
         1j * k * (np.sin(t0) * np.cos(p0) * geom.x + np.sin(t0) * np.sin(p0) * geom.y)
     ) * np.cos(t0)
 
-    ideal_phase = np.angle(
-        pa.steering_vector(k, geom.x, geom.y, TARGET_THETA_DEG, TARGET_PHI_DEG)
-    )
+    ideal_phase = np.angle(pa.steering_vector(k, geom.x, geom.y, TARGET_THETA_DEG, TARGET_PHI_DEG))
     weights = states[np.round(ideal_phase / step).astype(int) % 4]
     weights[FAILED] = 0.0
 
@@ -92,8 +91,9 @@ def solve(max_sweeps: int = 8, seed: int = 0) -> np.ndarray:
                 if state == current:
                     continue
                 delta = state - current
-                score = sidelobe_db(field + steering_matrix[:, e] * delta,
-                                    main + boresight[e] * delta)
+                score = sidelobe_db(
+                    field + steering_matrix[:, e] * delta, main + boresight[e] * delta
+                )
                 if score < chosen_score - 1e-9:
                     chosen, chosen_score = state, score
             if chosen is not current and chosen != current:

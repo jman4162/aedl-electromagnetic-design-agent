@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from importlib import metadata
 from pathlib import Path
+from typing import Any
 
 #: Packages whose versions change benchmark results and so must be pinned in the record.
 TRACKED_PACKAGES = (
@@ -54,16 +55,16 @@ class RunRecord:
     agent_returncode: int | None = None
     timed_out: bool = False
     agent_wall_time_s: float | None = None
-    usage: dict = field(default_factory=dict)
-    calls: dict = field(default_factory=dict)
-    requirements: list = field(default_factory=list)
+    usage: dict[str, Any] = field(default_factory=dict)
+    calls: dict[str, Any] = field(default_factory=dict)
+    requirements: list[dict[str, Any]] = field(default_factory=list)
     error: str | None = None
-    environment: dict = field(default_factory=dict)
+    environment: dict[str, Any] = field(default_factory=dict)
     #: The interpreter and library versions the agent itself reaches for, which
     #: need not match the harness environment that scores the result.
-    agent_interpreter: dict = field(default_factory=dict)
+    agent_interpreter: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["environment"] = d["environment"] or {
             "python": sys.version.split()[0],
@@ -76,5 +77,6 @@ class RunRecord:
         path.write_text(json.dumps(self.to_dict(), indent=2, default=str))
 
 
-def load_record(path: Path) -> dict:
-    return json.loads(path.read_text())
+def load_record(path: Path) -> dict[str, Any]:
+    data: dict[str, Any] = json.loads(path.read_text())
+    return data

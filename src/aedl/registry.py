@@ -6,8 +6,9 @@ Evaluators must be deterministic: same spec + same submission -> same result.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Protocol
+from typing import Protocol
 
 from aedl.result import EvaluationResult
 from aedl.spec import TaskSpec
@@ -34,6 +35,4 @@ def get_evaluator(name: str) -> Evaluator:
     try:
         return _EVALUATORS[name]
     except KeyError:
-        raise KeyError(
-            f"unknown evaluator {name!r}; registered: {sorted(_EVALUATORS)}"
-        ) from None
+        raise KeyError(f"unknown evaluator {name!r}; registered: {sorted(_EVALUATORS)}") from None

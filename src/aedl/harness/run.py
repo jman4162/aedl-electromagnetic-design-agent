@@ -8,8 +8,10 @@ import shutil
 import uuid
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
-from aedl.harness import instrument, workspace as ws
+from aedl.harness import instrument
+from aedl.harness import workspace as ws
 from aedl.harness.adapter import AgentAdapter
 from aedl.harness.record import RunRecord, utc_stamp
 from aedl.registry import get_evaluator
@@ -30,28 +32,57 @@ class hidden_references:
 
     This is a deterrent, not a sandbox: the agent runs as the same user and
     could restore the mode. Publish results from a container.
+
+    Concurrency: a second run starting while a first holds the directories
+    would otherwise record 0o000 as the "original" mode and restore that,
+    locking the answer key permanently. A sidecar file records the real mode
+    for whoever restores it, and only the process that hid a directory
+    restores it.
     """
+
+    #: Written beside a hidden directory so a concurrent run can tell that the
+    #: 0o000 it observes is not the original mode.
+    SENTINEL = ".aedl-hidden-mode"
 
     def __init__(self, tasks_dir: Path):
         self._dirs = sorted(tasks_dir.glob("*/reference"))
-        self._modes: dict[Path, int] = {}
+        self._held: dict[Path, int] = {}
 
-    def __enter__(self):
+    def __enter__(self) -> hidden_references:
         for path in self._dirs:
+            sentinel = path.parent / self.SENTINEL
+            if sentinel.exists():
+                continue  # another run already hid this one; leave it alone
             try:
-                self._modes[path] = path.stat().st_mode & 0o777
+                mode = path.stat().st_mode & 0o777
+                sentinel.write_text(str(mode))
                 path.chmod(0o000)
+                self._held[path] = mode
             except OSError:
-                self._modes.pop(path, None)
+                self._held.pop(path, None)
         return self
 
-    def __exit__(self, *exc):
-        for path, mode in self._modes.items():
+    def __exit__(self, *exc: object) -> None:
+        for path, mode in self._held.items():
             try:
                 path.chmod(mode)
+                (path.parent / self.SENTINEL).unlink(missing_ok=True)
             except OSError:
                 pass
-        return False
+
+    @classmethod
+    def recover(cls, tasks_dir: Path) -> list[Path]:
+        """Restore directories left hidden by a run that died before cleanup."""
+        restored = []
+        for sentinel in sorted(tasks_dir.glob(f"*/{cls.SENTINEL}")):
+            reference = sentinel.parent / "reference"
+            try:
+                reference.chmod(int(sentinel.read_text().strip()))
+                sentinel.unlink()
+                restored.append(reference)
+            except (OSError, ValueError):
+                continue
+        return restored
 
 
 _PROBE = (
@@ -69,7 +100,7 @@ _PROBE = (
 )
 
 
-def probe_agent_interpreter(env: dict[str, str], cwd: Path) -> dict:
+def probe_agent_interpreter(env: dict[str, str], cwd: Path) -> dict[str, Any]:
     """What `python3` resolves to for the agent.
 
     The harness venv is not on the agent's PATH, so the interpreter it reaches
@@ -80,20 +111,21 @@ def probe_agent_interpreter(env: dict[str, str], cwd: Path) -> dict:
 
     try:
         proc = subprocess.run(
-            ["python3", "-c", _PROBE], env=env, cwd=cwd,
-            capture_output=True, text=True, timeout=60,
+            ["python3", "-c", _PROBE],
+            env=env,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
-        return json.loads(proc.stdout)
+        parsed: dict[str, Any] = json.loads(proc.stdout)
+        return parsed
     except Exception as exc:
         return {"error": f"{type(exc).__name__}: {exc}"}
 
 
 def _child_env(extra: dict[str, str] | None = None) -> dict[str, str]:
-    env = {
-        k: v
-        for k, v in os.environ.items()
-        if not any(k.startswith(p) for p in _SCRUB_PREFIXES)
-    }
+    env = {k: v for k, v in os.environ.items() if not any(k.startswith(p) for p in _SCRUB_PREFIXES)}
     env.update(extra or {})
     return env
 
@@ -145,7 +177,13 @@ def run_task(
             record.usage["extra"] = info.extra
 
         submission = work / ws.SUBMISSION_NAME
-        if not submission.exists():
+        if info.timed_out:
+            # Whatever is on disk was written by an agent that ran out of time,
+            # so it may be half-written or left over from an earlier step.
+            # Scoring it would silently admit an incomplete design.
+            record.status = "timeout"
+            record.error = f"agent exceeded the {timeout_s}s limit"
+        elif not submission.exists():
             record.status = "no_submission"
             record.error = f"agent did not create {ws.SUBMISSION_NAME}"
         else:
@@ -175,8 +213,10 @@ def run_task(
 
 
 def _collect_logs(work: Path, bundle: Path) -> None:
-    for src, dst in ((".aedl-agent.stdout", "agent.stdout.log"),
-                     (".aedl-agent.stderr", "agent.stderr.log")):
+    for src, dst in (
+        (".aedl-agent.stdout", "agent.stdout.log"),
+        (".aedl-agent.stderr", "agent.stderr.log"),
+    ):
         path = work / src
         if path.exists():
             shutil.copy2(path, bundle / dst)

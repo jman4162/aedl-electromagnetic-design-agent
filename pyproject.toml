@@ -1,32 +1,99 @@
 [build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "aedl"
-version = "0.0.1"
-description = "Agentic Electromagnetic Design Lab: benchmark tasks and deterministic evaluators for RF/microwave design agents"
+version = "0.1.0.dev0"
+description = "Benchmark tasks and deterministic evaluators for RF/microwave design agents"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "John Hodge", email = "jhodge007@gmail.com" }]
+keywords = [
+    "benchmark", "llm-agents", "electromagnetics", "phased-array",
+    "metasurface", "rf", "antenna-design",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
 dependencies = [
-    "numpy>=1.24",
+    # NumPy 2 is a hard floor: the evaluators use np.trapezoid, added in 2.0.
+    "numpy>=2.0",
     "pyyaml>=6.0",
-    "phased-array-modeling>=1.4",
+    # A benchmark's ground truth is version-sensitive; pin the minor line.
+    "phased-array-modeling>=1.4,<2.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7"]
+dev = [
+    "pytest>=7",
+    "pytest-cov>=4",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "types-PyYAML",
+]
+# Tier-3 tasks score system-level architectures; not needed for Tier 2.
+systems = ["phased-array-systems>=0.9,<1.0"]
+
+[project.urls]
+Homepage = "https://github.com/jman4162/aedl-electromagnetic-design-agent"
+Repository = "https://github.com/jman4162/aedl-electromagnetic-design-agent"
+Issues = "https://github.com/jman4162/aedl-electromagnetic-design-agent/issues"
 
 [project.scripts]
 aedl = "aedl.cli:main"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.hatch.build.targets.wheel]
+packages = ["src/aedl"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "--strict-markers"
 # Import from src/ directly rather than relying on the editable install's .pth,
 # which is not honored on every platform.
 pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "C4", "SIM", "RUF"]
+ignore = [
+    "E501",     # line length is the formatter's job
+    "RUF001",   # Unicode in physics prose (µ, λ, −) is intentional
+    "RUF002",
+    "RUF003",
+    "N801",     # hidden_references is a context manager, named like one
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["aedl"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+# Pinned to 3.12 even though the runtime floor is 3.10: numpy's stubs use
+# PEP 695 type aliases that older mypy targets cannot parse.
+python_version = "3.12"
+strict = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+ignore_missing_imports = true
+files = ["src"]
+
+[[tool.mypy.overrides]]
+module = ["phased_array.*", "phased_array_systems.*", "scipy.*"]
+ignore_missing_imports = true

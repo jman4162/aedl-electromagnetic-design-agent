@@ -11,7 +11,8 @@ run; see **Calibration log**.
 
 ## Sequencing decision: harness before tasks
 
-Build `aedl run --agent` next, ahead of tasks 2–6.
+*Recorded as written before the harness existed; the reasoning is why it was
+built first, and the calibration log below is what it caught.*
 
 Right now every threshold in `t2-001` is a hand-derived guess. It is calibrated
 against *analytic* solutions (naive 2-bit rounding fails at −5.9 dB, dithered
@@ -31,16 +32,16 @@ measurement instead of an argument.
 ### Harness scope
 
 ```
-aedl run --task t2-001 --agent "claude -p" --out runs/2026-08-15-t2-001/
+aedl run --task t2-001 --agent claude --model sonnet --attempts 3
 ```
 
-- Materializes a workspace: `task.yaml` plus a `README` stating the submission
-  contract. Excludes `reference/`.
+- Materializes a workspace: `task.yaml` plus a generated `BRIEF.md` stating the
+  submission contract. Excludes `reference/`.
 - Runs the agent with a turn/wall-clock budget, captures the transcript.
 - Scores the produced submission, writes `result.json` + the run record.
 - **Cost record per run**: evaluator calls, model calls broken out by fidelity tier
-  (analytic / reduced-order / full-wave), wall time, tokens.
-- `aedl report runs/` → the leaderboard table for the README and the paper.
+  (`aperture_model` / `reduced_order` / `full_wave`), wall time, tokens.
+- `aedl report --runs-dir runs` renders the leaderboard for the README and the paper.
 
 Agents may reimplement the metrics, which is fine and expected. The question is
 whether an agent can *design*, not whether it can guess the scoring function. What
@@ -222,9 +223,9 @@ made concrete, and it is not hypothetical here:
 The main-lobe exclusion mask is wrong:
 
 ```python
-bw = compute_beamwidth(pattern_db, angles_deg, -3.0)   # full -3 dB width
-main_lobe_width_deg = bw * 2      # line 86
-half_width = main_lobe_width_deg / 2   # == bw  — the /2 cancels the *2
+bw = compute_beamwidth(pattern_db, angles_deg, -3.0)  # full -3 dB width
+main_lobe_width_deg = bw * 2  # line 86
+half_width = main_lobe_width_deg / 2  # == bw  — the /2 cancels the *2
 mask = np.abs(angles_deg - peak_angle) > half_width
 ```
 

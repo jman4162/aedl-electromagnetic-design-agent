@@ -7,8 +7,9 @@ submission (or not, or raise). Nothing here touches a network or a model.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
+from typing import Any
 
 from aedl.harness.adapter import AgentRunInfo, AgentUsage, register_adapter
 
@@ -33,5 +34,9 @@ class MockAdapter:
 
 
 @register_adapter("mock")
-def _factory(behavior=None, returncode: int = 0, **_ignored) -> MockAdapter:
+def _factory(
+    behavior: Callable[[Path], None] | None = None,
+    returncode: int = 0,
+    **_ignored: Any,
+) -> MockAdapter:
     return MockAdapter(behavior=behavior, returncode=returncode)

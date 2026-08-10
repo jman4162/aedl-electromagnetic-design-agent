@@ -12,8 +12,9 @@ import json
 import subprocess
 import time
 from pathlib import Path
+from typing import Any
 
-from aedl.harness.adapter import AgentRunInfo, AgentUsage, register_adapter
+from aedl.harness.adapter import AgentRunInfo, AgentUsage, as_text, register_adapter
 
 DEFAULT_TOOLS = "Bash,Read,Write,Edit,Glob,Grep"
 PROMPT = (
@@ -42,11 +43,17 @@ class ClaudeCliAdapter:
 
     def build_command(self) -> list[str]:
         cmd = [
-            self._binary, "-p", PROMPT,
-            "--output-format", "json",
-            "--permission-mode", "bypassPermissions",
-            "--tools", self._tools,
-            "--setting-sources", self._setting_sources,
+            self._binary,
+            "-p",
+            PROMPT,
+            "--output-format",
+            "json",
+            "--permission-mode",
+            "bypassPermissions",
+            "--tools",
+            self._tools,
+            "--setting-sources",
+            self._setting_sources,
             "--strict-mcp-config",
             "--disable-slash-commands",
             "--exclude-dynamic-system-prompt-sections",
@@ -64,15 +71,19 @@ class ClaudeCliAdapter:
         timed_out = False
         try:
             proc = subprocess.run(
-                cmd, cwd=workspace, env=env, timeout=timeout_s,
-                capture_output=True, text=True,
+                cmd,
+                cwd=workspace,
+                env=env,
+                timeout=timeout_s,
+                capture_output=True,
+                text=True,
             )
             returncode, stdout, stderr = proc.returncode, proc.stdout, proc.stderr
         except subprocess.TimeoutExpired as exc:
             timed_out = True
             returncode = 124
-            stdout = _as_text(exc.stdout)
-            stderr = _as_text(exc.stderr) + f"\n[aedl] timed out after {timeout_s}s"
+            stdout = as_text(exc.stdout)
+            stderr = as_text(exc.stderr) + f"\n[aedl] timed out after {timeout_s}s"
 
         (workspace / ".aedl-agent.stdout").write_text(stdout)
         (workspace / ".aedl-agent.stderr").write_text(stderr)
@@ -90,13 +101,7 @@ class ClaudeCliAdapter:
         )
 
 
-def _as_text(value) -> str:
-    if value is None:
-        return ""
-    return value.decode(errors="replace") if isinstance(value, bytes) else value
-
-
-def _parse_result_json(stdout: str) -> tuple[AgentUsage, dict]:
+def _parse_result_json(stdout: str) -> tuple[AgentUsage, dict[str, Any]]:
     """Pull usage out of `--output-format json`. Never raises on odd output."""
     try:
         payload = json.loads(stdout)
@@ -119,8 +124,15 @@ def _parse_result_json(stdout: str) -> tuple[AgentUsage, dict]:
     )
     extra = {
         k: payload[k]
-        for k in ("session_id", "duration_ms", "duration_api_ms", "is_error",
-                  "subtype", "stop_reason", "permission_denials")
+        for k in (
+            "session_id",
+            "duration_ms",
+            "duration_api_ms",
+            "is_error",
+            "subtype",
+            "stop_reason",
+            "permission_denials",
+        )
         if k in payload
     }
     model_usage = payload.get("modelUsage")
@@ -131,7 +143,7 @@ def _parse_result_json(stdout: str) -> tuple[AgentUsage, dict]:
     return usage, extra
 
 
-def primary_model(model_usage: dict) -> str | None:
+def primary_model(model_usage: dict[str, Any]) -> str | None:
     """The model that did the work.
 
     Claude Code delegates cheap internal operations to a small model, so
@@ -146,14 +158,18 @@ def primary_model(model_usage: dict) -> str | None:
     )
 
 
-def _maybe_int(v):
+def _maybe_int(v: object) -> int | None:
+    if isinstance(v, bool) or not isinstance(v, (int, float, str)):
+        return None
     try:
         return int(v)
     except (TypeError, ValueError):
         return None
 
 
-def _maybe_float(v):
+def _maybe_float(v: object) -> float | None:
+    if isinstance(v, bool) or not isinstance(v, (int, float, str)):
+        return None
     try:
         return float(v)
     except (TypeError, ValueError):
@@ -167,9 +183,12 @@ def _factory(
     setting_sources: str = "project",
     max_budget_usd: float | None = 5.0,
     binary: str = "claude",
-    **_ignored,
+    **_ignored: Any,
 ) -> ClaudeCliAdapter:
     return ClaudeCliAdapter(
-        model=model, tools=tools, setting_sources=setting_sources,
-        max_budget_usd=max_budget_usd, binary=binary,
+        model=model,
+        tools=tools,
+        setting_sources=setting_sources,
+        max_budget_usd=max_budget_usd,
+        binary=binary,
     )

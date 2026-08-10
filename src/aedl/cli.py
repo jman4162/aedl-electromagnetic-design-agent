@@ -51,11 +51,13 @@ def cmd_run(args: argparse.Namespace) -> int:
         max_budget_usd=args.max_budget_usd,
     )
 
+    statuses = []
     for attempt in range(1, args.attempts + 1):
         if args.attempts > 1:
             print(f"--- attempt {attempt}/{args.attempts} ---")
         record, bundle = run_task(
-            spec, adapter,
+            spec,
+            adapter,
             runs_dir=args.runs_dir,
             isolation=args.isolation,
             timeout_s=args.timeout,
@@ -72,7 +74,13 @@ def cmd_run(args: argparse.Namespace) -> int:
             )
         if record.calls.get("total_calls"):
             print(f"  model calls: {record.calls['calls_by_tier']}")
-    return 0
+        statuses.append(record.status)
+
+    # Exit 0 only when every attempt produced a scored pass, matching the
+    # contract `aedl evaluate` already follows, so CI can gate on this.
+    if all(s == "pass" for s in statuses):
+        return 0
+    return 1 if all(s in ("pass", "fail") for s in statuses) else 2
 
 
 def cmd_report(args: argparse.Namespace) -> int:
@@ -133,7 +141,8 @@ def main(argv: list[str] | None = None) -> int:
     p_report.set_defaults(func=cmd_report)
 
     args = parser.parse_args(argv)
-    return args.func(args)
+    code: int = args.func(args)
+    return code
 
 
 if __name__ == "__main__":

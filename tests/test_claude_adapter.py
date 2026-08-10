@@ -57,8 +57,13 @@ def test_parse_survives_non_json_output():
 def test_command_pins_config_isolation_and_model():
     cmd = ClaudeCliAdapter(model="sonnet").build_command()
     assert cmd[:2] == ["claude", "-p"]
-    for flag in ("--strict-mcp-config", "--disable-slash-commands", "--tools",
-                 "--setting-sources", "--output-format"):
+    for flag in (
+        "--strict-mcp-config",
+        "--disable-slash-commands",
+        "--tools",
+        "--setting-sources",
+        "--output-format",
+    ):
         assert flag in cmd, f"{flag} missing: a run would inherit operator config"
     assert cmd[cmd.index("--model") + 1] == "sonnet"
     assert cmd[cmd.index("--permission-mode") + 1] == "bypassPermissions"

@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use AEDL in academic work, please cite it as below."
+type: software
+title: "AEDL: Agentic Electromagnetic Design Lab"
+abstract: >-
+  Benchmark tasks and deterministic evaluators for testing whether AI agents can
+  do RF and microwave electromagnetic design. An agent proposes a design and
+  deterministic physics code decides whether it meets the specification.
+version: 0.1.0.dev0
+license: MIT
+url: "https://github.com/jman4162/aedl-electromagnetic-design-agent"
+repository-code: "https://github.com/jman4162/aedl-electromagnetic-design-agent"
+authors:
+  - family-names: Hodge
+    given-names: John
+keywords:
+  - benchmark
+  - large language model agents
+  - computational electromagnetics
+  - phased array
+  - metasurface
+  - antenna design

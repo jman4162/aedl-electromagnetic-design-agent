@@ -1,0 +1,22 @@
+name: Prose
+
+on:
+  push:
+    branches: [main]
+    paths: ["**/*.md"]
+  pull_request:
+    paths: ["**/*.md"]
+
+jobs:
+  slopcheck:
+    runs-on: ubuntu-latest
+    # Advisory: the linter has known false positives on this project's
+    # vocabulary (it flags "harness", which is a component name here).
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run slopcheck
+        run: scripts/slopcheck.sh

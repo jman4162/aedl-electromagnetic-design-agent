@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from pathlib import Path
+from typing import Any
 
 #: fidelity tier -> "module:attribute" entry points to time and count.
 TIERS: dict[str, list[str]] = {
@@ -194,7 +195,7 @@ def build_env(base_env: dict[str, str], shim_dir: Path, call_log: Path) -> dict[
     return env
 
 
-def summarize(call_log: Path) -> dict:
+def summarize(call_log: Path) -> dict[str, Any]:
     """Aggregate a call log into per-tier counts and cumulative wall time."""
     counts: dict[str, int] = defaultdict(int)
     seconds: dict[str, float] = defaultdict(float)

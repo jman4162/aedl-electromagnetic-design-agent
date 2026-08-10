@@ -11,8 +11,9 @@ import shlex
 import subprocess
 import time
 from pathlib import Path
+from typing import Any
 
-from aedl.harness.adapter import AgentRunInfo, AgentUsage, register_adapter
+from aedl.harness.adapter import AgentRunInfo, AgentUsage, as_text, register_adapter
 from aedl.harness.workspace import SUBMISSION_NAME
 
 
@@ -39,19 +40,19 @@ class CommandAdapter:
         timed_out = False
         try:
             proc = subprocess.run(
-                cmd, cwd=workspace, env=env, timeout=timeout_s,
-                capture_output=True, text=True,
+                cmd,
+                cwd=workspace,
+                env=env,
+                timeout=timeout_s,
+                capture_output=True,
+                text=True,
             )
             returncode, stdout, stderr = proc.returncode, proc.stdout, proc.stderr
         except subprocess.TimeoutExpired as exc:
             timed_out = True
             returncode = 124
-            stdout = exc.stdout or ""
-            stderr = (exc.stderr or "") + f"\n[aedl] timed out after {timeout_s}s"
-            if isinstance(stdout, bytes):
-                stdout = stdout.decode(errors="replace")
-            if isinstance(stderr, bytes):
-                stderr = stderr.decode(errors="replace")
+            stdout = as_text(exc.stdout)
+            stderr = as_text(exc.stderr) + f"\n[aedl] timed out after {timeout_s}s"
 
         (workspace / ".aedl-agent.stdout").write_text(stdout)
         (workspace / ".aedl-agent.stderr").write_text(stderr)
@@ -65,5 +66,5 @@ class CommandAdapter:
 
 
 @register_adapter("command")
-def _factory(template: str = "", model: str | None = None, **_ignored) -> CommandAdapter:
+def _factory(template: str = "", model: str | None = None, **_ignored: Any) -> CommandAdapter:
     return CommandAdapter(template=template, model=model)

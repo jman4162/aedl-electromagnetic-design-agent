@@ -7,9 +7,10 @@ agent leaves behind.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Protocol
+from typing import Any, Protocol
 
 
 @dataclass
@@ -32,7 +33,7 @@ class AgentRunInfo:
     usage: AgentUsage = field(default_factory=AgentUsage)
     command: list[str] = field(default_factory=list)
     timed_out: bool = False
-    extra: dict = field(default_factory=dict)
+    extra: dict[str, Any] = field(default_factory=dict)
 
 
 class AgentAdapter(Protocol):
@@ -41,11 +42,22 @@ class AgentAdapter(Protocol):
     def run(self, workspace: Path, env: dict[str, str], timeout_s: int) -> AgentRunInfo: ...
 
 
+def as_text(value: object) -> str:
+    """Coerce subprocess output to str; TimeoutExpired may hand back bytes."""
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode(errors="replace")
+    return str(value)
+
+
 _ADAPTERS: dict[str, Callable[..., AgentAdapter]] = {}
 
 
-def register_adapter(name: str) -> Callable:
-    def deco(factory):
+def register_adapter(
+    name: str,
+) -> Callable[[Callable[..., AgentAdapter]], Callable[..., AgentAdapter]]:
+    def deco(factory: Callable[..., AgentAdapter]) -> Callable[..., AgentAdapter]:
         if name in _ADAPTERS:
             raise ValueError(f"adapter {name!r} already registered")
         _ADAPTERS[name] = factory
@@ -54,13 +66,11 @@ def register_adapter(name: str) -> Callable:
     return deco
 
 
-def get_adapter(name: str, **kwargs) -> AgentAdapter:
+def get_adapter(name: str, **kwargs: Any) -> AgentAdapter:
     try:
         factory = _ADAPTERS[name]
     except KeyError:
-        raise KeyError(
-            f"unknown agent adapter {name!r}; registered: {sorted(_ADAPTERS)}"
-        ) from None
+        raise KeyError(f"unknown agent adapter {name!r}; registered: {sorted(_ADAPTERS)}") from None
     return factory(**kwargs)
 
 

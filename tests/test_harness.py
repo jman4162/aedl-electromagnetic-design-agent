@@ -9,8 +9,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from aedl.harness import get_adapter, run_task
-from aedl.harness import instrument, workspace as ws
+from aedl.harness import get_adapter, instrument, run_task
+from aedl.harness import workspace as ws
 from aedl.harness.report import load_runs, render
 from aedl.spec import find_task
 
@@ -38,12 +38,17 @@ def _writer(weights):
 def _run(spec, tmp_path, behavior=None, returncode=0, instrumented=False):
     adapter = get_adapter("mock", behavior=behavior, returncode=returncode)
     return run_task(
-        spec, adapter, runs_dir=tmp_path / "runs",
-        isolation="tmpdir", timeout_s=60, instrumented=instrumented,
+        spec,
+        adapter,
+        runs_dir=tmp_path / "runs",
+        isolation="tmpdir",
+        timeout_s=60,
+        instrumented=instrumented,
     )
 
 
 # --- workspace -------------------------------------------------------------
+
 
 def test_workspace_has_brief_and_task_but_no_reference(spec, tmp_path):
     work = ws.materialize(spec, isolation="inplace", parent=tmp_path)
@@ -58,10 +63,13 @@ def test_brief_states_requirements_but_not_the_reference_technique(spec, tmp_pat
         assert req.id in brief
         assert req.metric in brief
     assert "submission.npz" in brief
-    assert "dither" not in brief.lower()
+    # The brief must not name the technique the reference solution uses.
+    for tell in ("coordinate descent", "dither"):
+        assert tell not in brief.lower()
 
 
 # --- run outcomes ----------------------------------------------------------
+
 
 def test_reference_submission_passes(spec, tmp_path):
     record, bundle = _run(spec, tmp_path, _writer(_reference_weights()))
@@ -101,7 +109,7 @@ def test_agent_exception_still_writes_bundle(spec, tmp_path):
 
 
 def test_manifest_pins_task_hash_and_dependencies(spec, tmp_path):
-    record, bundle = _run(spec, tmp_path, _writer(_reference_weights()))
+    _, bundle = _run(spec, tmp_path, _writer(_reference_weights()))
     manifest = json.loads((bundle / "manifest.json").read_text())
     assert manifest["task_sha256"] == ws.task_digest(spec)
     assert len(manifest["task_sha256"]) == 64
@@ -111,6 +119,7 @@ def test_manifest_pins_task_hash_and_dependencies(spec, tmp_path):
 
 
 # --- cost accounting -------------------------------------------------------
+
 
 def test_instrumentation_counts_calls_by_tier(tmp_path):
     shim = instrument.write_payload(tmp_path / "shim")
@@ -143,6 +152,7 @@ def test_summarize_handles_missing_log(tmp_path):
 
 # --- reporting -------------------------------------------------------------
 
+
 def test_report_aggregates_multiple_runs(spec, tmp_path):
     runs = tmp_path / "runs"
     _run(spec, tmp_path, _writer(_reference_weights()))
@@ -172,7 +182,6 @@ def test_agent_interpreter_is_probed_and_recorded(spec, tmp_path):
 
 def test_reference_solutions_are_hidden_during_a_run_and_restored(spec, tmp_path):
     """The answer key must not be readable while an agent is working."""
-    from aedl.harness.run import hidden_references
 
     reference = SOLVE.parent
     before = reference.stat().st_mode & 0o777
@@ -194,3 +203,104 @@ def os_access_ok(path: Path) -> bool:
     import os
 
     return os.access(path, os.R_OK | os.X_OK)
+
+
+# --- Stage 0 regressions ---------------------------------------------------
+
+
+def test_timeout_is_not_scored_even_if_a_submission_exists(spec, tmp_path):
+    """A timed-out agent may leave a half-written or stale file. Scoring it
+    would silently admit an incomplete design as a pass."""
+    from aedl.harness.adapter import AgentRunInfo, AgentUsage
+
+    weights = _reference_weights()
+
+    class TimedOut:
+        name = "mock"
+
+        def run(self, workspace, env, timeout_s):
+            np.savez(workspace / ws.SUBMISSION_NAME, weights=weights)
+            return AgentRunInfo(
+                returncode=124,
+                wall_time_s=1.0,
+                usage=AgentUsage(model="mock"),
+                command=["<mock>"],
+                timed_out=True,
+            )
+
+    record, _ = run_task(
+        spec,
+        TimedOut(),
+        runs_dir=tmp_path / "runs",
+        isolation="tmpdir",
+        timeout_s=60,
+        instrumented=False,
+    )
+    assert record.status == "timeout"
+    assert record.requirements == []
+    assert "exceeded" in record.error
+
+
+def test_concurrent_runs_do_not_lock_the_reference_directory(spec, tmp_path):
+    """A second run must not record 0o000 as the original mode."""
+    from aedl.harness.run import hidden_references
+
+    tasks_dir = TASKS
+    reference = SOLVE.parent
+    original = reference.stat().st_mode & 0o777
+
+    with hidden_references(tasks_dir):
+        assert not os_access_ok(reference)
+        with hidden_references(tasks_dir):  # concurrent run starts and finishes
+            pass
+        # The inner context must not have restored anything.
+        assert not os_access_ok(reference)
+    assert reference.stat().st_mode & 0o777 == original
+    assert not (reference.parent / hidden_references.SENTINEL).exists()
+
+
+def test_recover_restores_a_directory_left_hidden(spec, tmp_path):
+    from aedl.harness.run import hidden_references
+
+    reference = SOLVE.parent
+    original = reference.stat().st_mode & 0o777
+    ctx = hidden_references(TASKS)
+    ctx.__enter__()
+    ctx._held.clear()  # simulate the process dying before cleanup
+    ctx.__exit__()
+    assert not os_access_ok(reference)
+
+    restored = hidden_references.recover(TASKS)
+    assert reference in restored
+    assert reference.stat().st_mode & 0o777 == original
+
+
+def test_report_survives_a_partial_manifest():
+    """Bundles are written in a finally block and can be truncated."""
+    from aedl.harness.report import render, runs_table, summary_table
+
+    partial = [{"run_id": "x", "task_id": "t2-001"}]  # no status, usage, agent
+    text = render(partial)
+    assert "t2-001" in text
+    assert "unknown" in runs_table(partial)
+    assert "0%" in summary_table(partial)
+
+
+def test_report_tolerates_a_float_turn_count():
+    from aedl.harness.report import runs_table
+
+    rec = {
+        "run_id": "x",
+        "task_id": "t",
+        "agent": "a",
+        "status": "pass",
+        "usage": {"num_turns": 2.0},
+    }
+    assert "| 2 |" in runs_table([rec]) or "2.0" in runs_table([rec])
+
+
+def test_summary_table_of_empty_result():
+    from aedl.result import EvaluationResult
+
+    out = EvaluationResult(task_id="t", passed=True, requirements=()).summary_table()
+    assert "no requirements" in out
