@@ -1,6 +1,10 @@
 # Private working notes
 *.local.md
 
+# Essay drafts: written here so the numbers sit beside the code that produces
+# them, but not published from this repo.
+docs/essay-*.md
+
 # Agent run bundles (regenerate with `aedl run`)
 runs/
 leaderboard.md

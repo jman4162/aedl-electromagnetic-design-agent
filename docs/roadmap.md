@@ -15,9 +15,11 @@ run; see **Calibration log**.
 built first, and the calibration log below is what it caught.*
 
 Right now every threshold in `t2-001` is a hand-derived guess. It is calibrated
-against *analytic* solutions (naive 2-bit rounding fails at −5.9 dB, dithered
-quantization passes at −12 dB), and no agent has attempted it, so where a frontier
-model lands relative to that line is unmeasured. Writing five more tasks before
+against *analytic* solutions only. (Those were the original (30°, 0°) figures:
+naive rounding −5.9 dB, dithered quantization −12 dB. Both were superseded by
+the retarget to (27°, 10°) recorded in the calibration log.) No agent had
+attempted it, so where a frontier model landed relative to that line was
+unmeasured. Writing five more tasks before
 finding out risks a suite that is uniformly trivial or uniformly impossible,
 discovered at the end when there is no budget left to re-calibrate.
 
@@ -132,8 +134,14 @@ more than 20° of quantization error, and separately that it still fails the
 sidelobe requirement end-to-end. This class of degeneracy cannot silently return.
 
 **Post-fix baseline** (Sonnet 5, three attempts): 3/3 pass at −15.96, −16.52 and
-−17.02 dB against the −14 dB bar, i.e. 2–3 dB of margin, matching or beating the
-reference. Turns and cost fell across attempts (42→27 turns, $1.83→$0.93).
+−17.02 dB against the −14 dB bar, so margins of 1.96, 2.52 and 3.02 dB. Only the
+third beat the reference's −16.72 dB; the first two came in 0.76 and 0.20 dB
+worse than it. Turns and estimated cost fell across attempts (42→27 turns,
+$1.83→$0.93 API-equivalent; these runs were subscription-covered, not billed).
+
+Note both figures above are read off the scoring grid, which flatters optimized
+designs by 0.22–0.26 dB (see the grid-bias entry below). The reference's true
+continuous value is −16.50 dB.
 
 Verdict: the task is now *correct* but not *discriminating*, since a frontier model
 clears it reliably. Do not tighten the threshold to manufacture difficulty; the
