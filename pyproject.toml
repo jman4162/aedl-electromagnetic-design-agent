@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aedl"
+version = "0.0.1"
+description = "Agentic Electromagnetic Design Lab: benchmark tasks and deterministic evaluators for RF/microwave design agents"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "John Hodge", email = "jhodge007@gmail.com" }]
+dependencies = [
+    "numpy>=1.24",
+    "pyyaml>=6.0",
+    "phased-array-modeling>=1.4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+aedl = "aedl.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Import from src/ directly rather than relying on the editable install's .pth,
+# which is not honored on every platform.
+pythonpath = ["src"]

@@ -1,0 +1,27 @@
+# Private working notes
+*.local.md
+
+# Agent run bundles (regenerate with `aedl run`)
+runs/
+leaderboard.md
+
+# Slop-linter virtualenv (scripts/slopcheck.sh installs it on demand)
+scripts/.slopvenv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
