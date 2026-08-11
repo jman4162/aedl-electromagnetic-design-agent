@@ -127,25 +127,27 @@ Measured at the new geometry:
 |---|---|---|---|
 | direct rounding onto the 2-bit grid | −10.66 dB | 27.87 dBi | fails |
 | best global phase rotation | −10.66 dB | 27.87 dBi | fails (shortcut closed) |
-| greedy coordinate descent over the four states | −16.72 dB | 26.40 dBi | passes |
+| greedy coordinate descent over the four states | −16.98 dB | 26.40 dBi | passes |
 
 `tests/test_t2_001.py` now asserts that the best global rotation still leaves
 more than 20° of quantization error, and separately that it still fails the
 sidelobe requirement end-to-end. This class of degeneracy cannot silently return.
 
-**Post-fix baseline** (Sonnet 5, three attempts): 3/3 pass at −15.96, −16.52 and
-−17.02 dB against the −14 dB bar, so margins of 1.96, 2.52 and 3.02 dB. Only the
-third beat the reference's −16.72 dB; the first two came in 0.76 and 0.20 dB
-worse than it. Turns and estimated cost fell across attempts (42→27 turns,
-$1.83→$0.93 API-equivalent; these runs were subscription-covered, not billed).
+**Post-fix baseline** (Sonnet 5, three attempts): 3/3 pass against the −14 dB
+bar. Under the metric as it now stands the three attempts reach −15.96, −16.52
+and −17.59 dB, so margins of 1.96, 2.52 and 3.59 dB. None beats the reference's
+−16.98 dB, though attempt 3 comes within 0.6 dB. Turns and estimated cost fell
+across attempts (42→27 turns, $1.83→$0.93 API-equivalent; these runs were
+subscription-covered, not billed).
 
-Note both figures above are read off the scoring grid, which flatters optimized
-designs by 0.22–0.26 dB (see the grid-bias entry below). The reference's true
-continuous value is −16.50 dB.
+At the time these ran, the metric reported −15.96, −16.52 and −17.02 against a
+reference of −16.72, because it read the highest sample outside a fixed 8°
+radius and that radius sits inside the main lobe. See the sidelobe-extraction
+entry below.
 
 Verdict: the task is now *correct* but not *discriminating*, since a frontier model
 clears it reliably. Do not tighten the threshold to manufacture difficulty; the
-reference itself only reaches −16.72 dB, so a −18 dB bar risks being infeasible
+reference itself only reaches −16.98 dB, so a −18 dB bar risks being infeasible
 rather than hard. Keep `t2-001` as the suite's floor and let discrimination come
 from t2-002…t2-005 and Tier 3. This also means the current suite cannot yet rank
 agents, which is an argument for building t2-004 (multi-scale) next.
@@ -181,6 +183,48 @@ uncontaminated.** Treat the first pass rate as provisional and re-run under the
 hardened harness, ideally in a container with no copy of this repository, before
 quoting a number anywhere.
 
+### 2026-08-10 — the sidelobe metric was reading the main-lobe skirt
+
+`t2-001` scored the highest pattern sample outside a fixed 8° radius of the
+target. For a 16×16 array steered to 27° that radius sits inside the main lobe.
+A design whose true sidelobes fall below its own skirt level at 8° therefore got
+scored on the skirt: the reported point sat at exactly 8.00° from the target and
+climbed uphill to the main peak under refinement. Two of five designs measured
+did exactly that.
+
+| design | 8° radius | local maxima | continuous refinement |
+|---|---|---|---|
+| direct 2-bit rounding | −10.66 | −10.66 | −10.67 |
+| reference solution | −16.72 | −16.98 | −16.98 |
+| agent `d68c3564` | −15.96 | −15.96 | −15.96 |
+| agent `4eb80fae` | −16.52 | −16.52 | −16.52 |
+| agent `85d86723` | −17.02 | −17.59 | −17.60 |
+
+The offset is the small part. The metric *saturated*: once a design pushed its
+sidelobes below the skirt, further suppression stopped registering, which is
+precisely the discrimination the suite exists to provide.
+
+Fix applied: `peak_sidelobe_level_db` is the second-highest local maximum of the
+pattern. `exclusion_radius_deg` is still honoured when a task sets one, and
+`t2-001` no longer does.
+
+Two things worth carrying forward. First, this is the same defect that a source
+audit found in `phased-array-systems` on 2026-08-09, in a different codebase,
+written at a different time, for a different purpose. A main-lobe exclusion that
+does not reach the first null is apparently the default mistake in this
+operation, so any new metric that separates a main beam from its sidelobes gets
+checked against local-maximum detection before it is trusted.
+
+Second, the earlier grid-sampling diagnosis was wrong, and wrong in an
+instructive way. The continuous measurement used to establish it was itself
+clamped to the same 8° radius, so it hill-climbed the skirt and stopped on the
+boundary, roughly agreeing with the metric and appearing to confirm a small
+sampling bias. A check that shares an assumption with the thing it checks will
+agree with it. With the metric fixed and the refinement unconstrained, the
+361×721 reading matches continuous refinement to within 0.01 dB on every design,
+so grid sampling was never the problem. `scripts/verify_sidelobe_metric.py`
+reproduces the whole comparison.
+
 ### Rules carried forward from t2-001
 
 1. Always include an element pattern. A bare array factor over the full sphere has a
@@ -190,6 +234,10 @@ quoting a number anywhere.
    never trust the submission to have done it.
 3. Numerically verify feasibility *and* infeasibility-of-the-naive-approach before
    setting a threshold.
+4. Separate a main beam from its sidelobes by detecting local maxima, never by a
+   hand-set angular radius. The main lobe widens with scan angle and with taper,
+   so a radius that is safe for one design sits inside the main lobe for another.
+5. A verification path must not inherit the assumption it is verifying.
 
 ## Tier 3 — system (2 tasks)
 
@@ -228,38 +276,53 @@ made concrete, and it is not hypothetical here:
 
 **Root cause found** (read-only source audit, 2026-08-09) —
 `phased_array_systems/models/antenna/metrics.py:62-98`, `compute_sidelobe_level`.
-The main-lobe exclusion mask is wrong:
+The main-lobe exclusion mask was too narrow:
 
 ```python
 bw = compute_beamwidth(pattern_db, angles_deg, -3.0)  # full -3 dB width
-main_lobe_width_deg = bw * 2  # line 86
-half_width = main_lobe_width_deg / 2  # == bw  — the /2 cancels the *2
+main_lobe_width_deg = bw * 2      # total exclusion window
+half_width = main_lobe_width_deg / 2  # == bw, so the mask spans ±1×HPBW
 mask = np.abs(angles_deg - peak_angle) > half_width
 ```
 
-The mask therefore excludes only ±1×HPBW, but the first null of a 32-element
-aperture sits at roughly 1.3–1.8×HPBW (further with heavier taper). The reported
-"peak sidelobe" is a sample on the **main-lobe skirt**, not a sidelobe. There is
-no null detection and no local-maximum detection. That also explains the
-non-monotonicity: deeper taper widens the beam and steepens the skirt, so the
-first grid sample clearing the mask lands at a different point on the skirt each
-time. The underlying pattern is correct: for Taylor −35 dB the true local maxima
-are at −35.24 dB (±6.75°), −35.34 dB (±9.5°) — only the extraction is broken.
+An earlier version of this entry called the `/2` a cancellation of the `*2`. That
+was wrong: the arithmetic is deliberate and matches its comment, a total exclusion
+window of two beamwidths. The defect is that ±1×HPBW does not reach the first
+null, which for a 32-element aperture sits at roughly 1.3–1.8×HPBW and further as
+the taper deepens. The reported "peak sidelobe" was a sample on the **main-lobe
+skirt**. There was no null detection and no local-maximum detection. That also
+explains the non-monotonicity: deeper taper widens the beam and steepens the
+skirt, so the first grid sample clearing the mask lands at a different point on
+the skirt each time. The underlying pattern was correct: for Taylor −35 dB the
+true local maxima are at −35.24 dB (±6.75°), −35.34 dB (±9.5°) — only the
+extraction was broken.
 
-Phase-bit insensitivity has two independent causes: scenarios default to
+Phase-bit insensitivity had two independent causes: scenarios default to
 `scan_angle_deg = 0`, where all steering phases are zero and `quantize_phase` is a
-no-op; and off-broadside, 3-bit quantization lobes near −25 dB sit far below the
-≈−12.6 dB skirt reading, so the broken extraction hides them. Quantization *is*
-accounted for in gain via `phase_quantization_loss_db`
-(`models/antenna/errors.py:62-75`, Ruze), just not in SLL. Note the analytical
-fallback path used when `phased_array` is absent (`adapter.py:337-345`) *does*
-fold quantization into SLL, so the two code paths disagree by construction.
+no-op, which is correct behavior; and off-broadside, 3-bit quantization lobes near
+−25 dB sat far below the ≈−12.6 dB skirt reading, so the broken extraction hid
+them. Quantization *is* accounted for in gain via `phase_quantization_loss_db`
+(`models/antenna/errors.py:62-75`, Ruze). The analytical fallback path used when
+`phased_array` is absent (`adapter.py:337-345`) folds quantization into SLL, so
+the two code paths disagreed by construction.
 
-Fix direction: exclude out to the first null, or detect local maxima and drop the
-main peak. `nbar` is a side issue — `taylor_taper_2d` hardcodes `nbar=4`, which is
-adequate at −25 and −35 dB and costs 3.5 dB only at −45 dB (−41.5 achieved).
+**Fixed upstream in phased-array-systems 0.10.0** (2026-08-10). The main lobe is
+now excluded out to its first null on each side; `main_lobe_width_deg` still
+forces a fixed window. Measured after the fix:
 
-**Do not build a Tier-3 task that reads `sll_db` until this is fixed upstream.**
+| case | before | after |
+|---|---|---|
+| 32×32 Taylor −35 dB, broadside | −14.0 dB | −35.24 dB |
+| golden DBF case (`tests/data/golden_dbf_case.json`) | −16.56 dB | −30.39 dB |
+| taper depth −25 / −35 / −45 dB | −17.5 / −14.0 / −14.7 | −25.3 / −35.1 / −41.5 |
+| 32×32 Taylor −35 dB at 45°, 2 / 3 / 6 bits / ideal | flat | −4.96 / −16.14 / −28.64 / −32.26 dB |
+
+The two code paths now agree to 0.24 dB on the broadside case. `nbar` remains a
+side issue: `taylor_taper_2d` hardcodes `nbar=4`, adequate at −25 and −35 dB and
+costing 3.5 dB only at −45 dB (−41.5 achieved).
+
+Tier-3 tasks may now read `sll_db`, against `phased-array-systems>=0.10`. Pin that
+floor before building one: 0.9.x reports a different number for the same design.
 
 ### The two tasks
 

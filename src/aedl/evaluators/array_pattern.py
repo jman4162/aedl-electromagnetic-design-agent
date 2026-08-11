@@ -1,8 +1,10 @@
 """Deterministic evaluator for planar-array pattern-synthesis tasks.
 
 The submission is an .npz file containing a complex ``weights`` array, one entry
-per element in row-major (x-fastest) order matching
-``phased_array.create_rectangular_array``. The evaluator enforces the hardware
+per element, ordered to match ``phased_array.create_rectangular_array``. That
+function meshgrids with ``indexing='ij'`` and ravels, so **y varies fastest and
+x slowest**: index ``i`` is element ``(ix, iy) = divmod(i, ny)``. The evaluator
+enforces the hardware
 constraints declared in the task context (phase-only control, phase-shifter bit
 depth), zeroes the failed elements listed in the spec, computes the far-field
 pattern with ``phased-array-modeling``, and scores every requirement.
@@ -44,6 +46,57 @@ def _angular_separation_deg(
     dot = np.sin(theta1) * np.sin(theta2) * np.cos(phi1 - phi2) + np.cos(theta1) * np.cos(theta2)
     separation: npt.NDArray[np.float64] = np.degrees(np.arccos(np.clip(dot, -1.0, 1.0)))
     return separation
+
+
+def _peak_sidelobe_db(pattern_db: npt.NDArray[np.float64]) -> float:
+    """Peak sidelobe relative to the main beam, by local-maximum detection.
+
+    A sidelobe is a local maximum of the pattern other than the main beam, so
+    the peak sidelobe is the second-highest local maximum. Walking the samples
+    in descending order, the first one with no already-visited neighbour starts
+    a new lobe; the first such sample after the global peak is that second
+    maximum.
+
+    This replaces a fixed angular exclusion radius around the target. A hand-set
+    radius has to be wider than the main lobe, and the main lobe widens with
+    scan angle and with any taper, so a radius that is safe for one design sits
+    inside the main lobe for another. When that happens the reported "peak
+    sidelobe" is a sample on the main-lobe skirt, and the metric stops
+    responding to the sidelobes it is supposed to measure.
+
+    Grid conventions: rows are theta, columns are phi over a full turn with the
+    endpoint duplicated, so column wrap skips the duplicate.
+    """
+    n_theta, n_phi = pattern_db.shape
+    span = n_phi - 1 if n_phi > 1 else 1  # last column repeats the first
+
+    order = np.argsort(pattern_db, axis=None)[::-1]
+    rows, cols = np.unravel_index(order, pattern_db.shape)
+    peak_db = float(pattern_db[rows[0], cols[0]])
+
+    visited = np.zeros(pattern_db.shape, dtype=bool)
+    for n, (i, j) in enumerate(zip(rows, cols, strict=True)):
+        has_higher_neighbour = False
+        for di in (-1, 0, 1):
+            ii = i + di
+            if not 0 <= ii < n_theta:
+                continue
+            for dj in (-1, 0, 1):
+                if di == 0 and dj == 0:
+                    continue
+                if visited[ii, (j + dj) % span]:
+                    has_higher_neighbour = True
+                    break
+            if has_higher_neighbour:
+                break
+        if not has_higher_neighbour and n > 0:
+            return float(pattern_db[i, j]) - peak_db
+        visited[i, j] = True
+        if n_phi > 1 and j in (0, span):
+            # Keep the duplicated endpoint columns consistent with each other.
+            visited[i, 0] = visited[i, span] = True
+
+    return float("-inf")
 
 
 def _directivity_dbi(
@@ -136,10 +189,14 @@ def evaluate(spec: TaskSpec, submission: Path) -> EvaluationResult:
         _angular_separation_deg(theta_g[peak_idx], phi_g[peak_idx], target_theta, target_phi)
     )
 
-    sep = _angular_separation_deg(theta_g, phi_g, target_theta, target_phi)
-    exclusion = float(ctx["exclusion_radius_deg"])
-    sidelobe_region = sep > exclusion
-    metrics["peak_sidelobe_level_db"] = float(np.max(pattern_db[sidelobe_region]) - peak_db)
+    exclusion = ctx.get("exclusion_radius_deg")
+    if exclusion is None:
+        metrics["peak_sidelobe_level_db"] = _peak_sidelobe_db(pattern_db)
+    else:
+        # Fixed-radius exclusion, kept for tasks that pin one deliberately.
+        sep = _angular_separation_deg(theta_g, phi_g, target_theta, target_phi)
+        sidelobe_region = sep > float(exclusion)
+        metrics["peak_sidelobe_level_db"] = float(np.max(pattern_db[sidelobe_region]) - peak_db)
 
     metrics["directivity_dbi"] = _directivity_dbi(theta_g, phi_g, pattern_db)
 

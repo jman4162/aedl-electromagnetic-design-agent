@@ -120,6 +120,26 @@ def pattern(weights, n_theta: int, n_phi: int):
 
 
 def peak_sidelobe_db(weights, target, grid=SCORED_GRID) -> float:
+    """The scored metric: the second-highest local maximum of the pattern.
+
+    Imported from the evaluator rather than reimplemented, so a figure cannot
+    drift away from the number `aedl evaluate` reports.
+    """
+    del target  # the local-maximum metric does not need the steering direction
+    sys.path.insert(0, str(REPO / "src"))
+    from aedl.evaluators.array_pattern import _peak_sidelobe_db
+
+    _, _, pattern_db = pattern(weights, *grid)
+    return float(_peak_sidelobe_db(pattern_db))
+
+
+def fixed_radius_sidelobe_db(weights, target, grid=SCORED_GRID) -> float:
+    """What the task reported before 2026-08-10: highest sample outside a radius.
+
+    For a 16x16 array steered to 27 degrees the 8 degree radius sits inside the
+    main lobe, so a design whose true sidelobes fall below its own skirt level
+    at 8 degrees gets scored on the skirt.
+    """
     theta, phi, pattern_db = pattern(weights, *grid)
     tg, pg = np.meshgrid(theta, phi, indexing="ij")
     sep = separation_deg(tg, pg, *target)
@@ -143,8 +163,15 @@ def _raw_db(weights, theta, phi):
     return 20.0 * np.log10(np.maximum(np.abs(field) * element, 1e-30))
 
 
-def _refine_peak(weights, t0, p0, span_t, span_p, target, outside, rounds=7):
-    """Zoom in on a peak until the sampling step stops mattering."""
+def _refine_peak(weights, t0, p0, span_t, span_p, rounds=7):
+    """Zoom in on a peak until the sampling step stops mattering.
+
+    Deliberately unconstrained. An earlier version clamped the search to stay
+    outside the 8 degree exclusion radius, which made it climb the main-lobe
+    skirt and stop on the boundary, so the "independent" check inherited the
+    exact defect it was supposed to detect. Seeds that belong to the main lobe
+    are now identified by where they converge and discarded by the caller.
+    """
     t, p = t0, p0
     best_val = -np.inf
     for _ in range(rounds):
@@ -152,9 +179,6 @@ def _refine_peak(weights, t0, p0, span_t, span_p, target, outside, rounds=7):
         ps = np.linspace(p - span_p, p + span_p, 11)
         tt, pp = np.meshgrid(ts, ps, indexing="ij")
         vals = _raw_db(weights, tt, pp)
-        if outside:
-            keep = separation_deg(tt, pp, *target).ravel() > EXCLUSION_DEG
-            vals = np.where(keep, vals, -np.inf)
         i = int(np.argmax(vals))
         best_val = float(vals[i])
         t, p = tt.ravel()[i], pp.ravel()[i]
@@ -166,37 +190,33 @@ def _refine_peak(weights, t0, p0, span_t, span_p, target, outside, rounds=7):
 def refined_sidelobe_db(weights, target, grid=(721, 1441)) -> float:
     """Sidelobe peak found by local refinement rather than read off a grid.
 
-    A sculpted null leaves a narrow residual peak that a fixed grid can step
-    over, so the grid reading is optimistic. Zooming in on both the main beam
-    and the sidelobe recovers the value the grid missed.
+    Seeds are local maxima of a denser grid, so every lobe gets a starting
+    point. Each is refined without constraint; any seed that converges to the
+    main-beam value belonged to the main lobe and is dropped.
     """
+    del target  # lobes are separated by where they converge, not by a radius
     theta, phi, pattern_db = pattern(weights, *grid)
-    tg, pg = np.meshgrid(theta, phi, indexing="ij")
-    sep = separation_deg(tg, pg, *target)
     span_t = float(theta[1] - theta[0])
     span_p = float(phi[1] - phi[0])
 
     i, j = np.unravel_index(np.argmax(pattern_db), pattern_db.shape)
-    main = _refine_peak(weights, theta[i], phi[j], span_t, span_p, target, outside=False)
+    main = _refine_peak(weights, theta[i], phi[j], span_t, span_p)
 
-    # Refine several candidates, not just the grid's argmax: a neighbouring
-    # sidelobe that reads slightly lower on the grid can be the higher one once
-    # the sampling error is removed, which is the whole point of the exercise.
-    masked = np.where(sep > EXCLUSION_DEG, pattern_db, -np.inf)
-    flat = masked.ravel()
-    candidates = np.argpartition(flat, -400)[-400:]
-    seen: list[tuple[float, float]] = []
+    is_max = np.zeros_like(pattern_db, dtype=bool)
+    is_max[1:-1, 1:-1] = True
+    for dt, dp in ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)):
+        is_max &= pattern_db >= np.roll(np.roll(pattern_db, dt, axis=0), dp, axis=1)
+
+    order = np.argsort(np.where(is_max, pattern_db, -np.inf), axis=None)[::-1][:200]
     side = -np.inf
-    for idx in candidates[np.argsort(flat[candidates])[::-1]]:
-        i, j = np.unravel_index(idx, masked.shape)
-        t, p = float(theta[i]), float(phi[j])
-        # One refinement per distinct lobe; nearby samples share a peak.
-        if any(separation_deg(t, p, np.degrees(t0), np.degrees(p0)) < 1.0 for t0, p0 in seen):
+    for idx in order:
+        i, j = np.unravel_index(idx, pattern_db.shape)
+        if not np.isfinite(pattern_db[i, j]):
             continue
-        seen.append((t, p))
-        side = max(side, _refine_peak(weights, t, p, span_t, span_p, target, outside=True))
-        if len(seen) >= 12:
-            break
+        val = _refine_peak(weights, float(theta[i]), float(phi[j]), span_t, span_p)
+        if val >= main - 1e-6:  # this seed is on the main lobe
+            continue
+        side = max(side, val)
 
     return side - main
 
@@ -385,20 +405,25 @@ def compute_grid_bias() -> dict:
     data: dict = {"grids": [n_theta for n_theta, _ in grids], "series": {}}
     for name, weights in designs.items():
         print(f"  {name}: ", end="", flush=True)
-        scored = []
+        scored, fixed = [], []
         for grid in grids:
             scored.append(peak_sidelobe_db(weights, CURRENT, grid=grid))
+            fixed.append(fixed_radius_sidelobe_db(weights, CURRENT, grid=grid))
             print(f"{grid[0]} ", end="", flush=True)
         continuous = refined_sidelobe_db(weights, CURRENT)
         print(f"-> continuous {continuous:.3f} dB")
-        data["series"][name] = {"scored": scored, "continuous": continuous}
+        data["series"][name] = {
+            "scored": scored,
+            "fixed_radius": fixed,
+            "continuous": continuous,
+        }
     GRID_BIAS_DATA.parent.mkdir(parents=True, exist_ok=True)
     GRID_BIAS_DATA.write_text(json.dumps(data, indent=2) + "\n")
     return data
 
 
 def figure_grid_bias() -> Path:
-    """The scored grid flatters optimized designs and leaves naive ones alone."""
+    """A fixed exclusion radius wanders with grid density; local maxima do not."""
     if not GRID_BIAS_DATA.exists():
         raise SystemExit(
             f"no cached measurement at {GRID_BIAS_DATA.relative_to(REPO)}. Build it:\n"
@@ -408,28 +433,46 @@ def figure_grid_bias() -> Path:
     grids = data["grids"]
     x = np.arange(len(grids))
 
-    # Plot the error itself, not the absolute level. On an absolute axis
-    # spanning -10 to -17 dB a fifth of a decibel is invisible, and the
-    # differential error is the entire claim. Positive means the grid reported
-    # a better sidelobe than the design actually achieves.
+    # Plot the error against continuous refinement, not the absolute level: on
+    # an axis spanning -10 to -17 dB a fifth of a decibel is invisible, and the
+    # error is the entire claim. Positive means the metric read worse than the
+    # design achieves. The two metrics are drawn for the optimized design only,
+    # since that is the one where they disagree.
     fig, ax = plt.subplots(figsize=(7.0, 3.4))
-    for name, colour in (("direct rounding", NAIVE), ("coordinate descent", OPTIMIZED)):
-        series = data["series"][name]
-        flattery = [series["continuous"] - s for s in series["scored"]]
-        ax.plot(x, flattery, "o-", color=colour, ms=7, label=name, zorder=3)
-        ax.annotate(
-            f"{flattery[0]:+.3f} dB at the scored grid",
-            xy=(0, flattery[0]),
-            xytext=(12, -24 if flattery[0] > 0.05 else -16),
-            textcoords="offset points",
-            fontsize=8,
-            color=colour,
-            fontweight="bold",
-        )
+    series = data["series"]["coordinate descent"]
+    truth = series["continuous"]
+
+    ax.plot(
+        x,
+        [s - truth for s in series["fixed_radius"]],
+        "o--",
+        color=NAIVE,
+        ms=7,
+        label="highest sample outside an 8° radius",
+        zorder=3,
+    )
+    ax.plot(
+        x,
+        [s - truth for s in series["scored"]],
+        "o-",
+        color=OPTIMIZED,
+        ms=7,
+        label="second-highest local maximum",
+        zorder=3,
+    )
+    ax.annotate(
+        f"{series['fixed_radius'][0] - truth:+.2f} dB, and it moves with the grid",
+        xy=(0, series["fixed_radius"][0] - truth),
+        xytext=(12, -4),
+        textcoords="offset points",
+        fontsize=8,
+        color=NAIVE,
+        fontweight="bold",
+    )
 
     ax.axhline(0.0, color=INK, lw=0.9)
     ax.annotate(
-        "0 = the grid told the truth",
+        "0 = agrees with continuous refinement",
         xy=(len(grids) - 1, 0),
         xytext=(0, 7),
         textcoords="offset points",
@@ -440,11 +483,11 @@ def figure_grid_bias() -> Path:
     ax.set_xticks(x)
     ax.set_xticklabels([f"{n}×{2 * n - 1}" for n in grids])
     ax.set_xlim(-0.3, len(grids) - 0.7)
-    ax.margins(y=0.18)
+    ax.margins(y=0.25)
     ax.set_xlabel("evaluation grid (n_theta × n_phi)")
-    ax.set_ylabel("dB by which the grid flatters the design")
+    ax.set_ylabel("dB above the achieved sidelobe")
     ax.set_title(
-        "The scoring grid flatters optimized designs, not unoptimized ones",
+        "A fixed exclusion radius reads the main-lobe skirt; local maxima do not",
         loc="left",
         pad=10,
     )
@@ -452,7 +495,7 @@ def figure_grid_bias() -> Path:
     ax.set_axisbelow(True)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
-    ax.legend(loc="upper right", frameon=False)
+    ax.legend(loc="center right", frameon=False)
     return save(fig, "grid-bias.svg")
 
 

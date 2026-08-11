@@ -26,7 +26,6 @@ context:
     theta_deg: 27.0
     phi_deg: 10.0
   failed_elements: [7, 23, 42, 58, 77, 96, 113, 128, 150, 171, 199, 220, 245]
-  exclusion_radius_deg: 8.0
 
 deliverable:
   format: npz

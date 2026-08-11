@@ -35,9 +35,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and erased the quantization error the task was meant to pose. An agent found
   this on the first run.
 - The reference solution is now greedy coordinate descent over the four phase
-  states (−16.7 dB) rather than dithered quantization.
+  states rather than dithered quantization.
+- `peak_sidelobe_level_db` is now the second-highest local maximum of the
+  pattern, replacing "highest sample outside a fixed angular radius of the
+  target". `exclusion_radius_deg` is still honoured when a task sets it, and
+  `t2-001` no longer does.
 
 ### Fixed
+
+- The peak-sidelobe metric could report a point on the main-lobe skirt. A fixed
+  exclusion radius has to be wider than the main lobe, and the main lobe widens
+  with scan angle and with any taper. `t2-001` used 8°, which for a 16×16 array
+  steered to 27° sits inside the main lobe, so once a design pushed its true
+  sidelobes below its own skirt level at 8° the metric reported the skirt and
+  stopped responding to the sidelobes. Two of the five designs measured hit
+  exactly that, both at exactly 8.00° from the target. Reported values move:
+
+  | design | before | after | independent refinement |
+  |---|---|---|---|
+  | direct 2-bit rounding | −10.66 | −10.66 | −10.67 |
+  | reference solution | −16.72 | −16.98 | −16.98 |
+  | agent `d68c3564` | −15.96 | −15.96 | −15.96 |
+  | agent `4eb80fae` | −16.52 | −16.52 | −16.52 |
+  | agent `85d86723` | −17.02 | −17.59 | −17.60 |
+
+  The metric was pessimistic for the two affected designs, so it understated
+  them and, worse, saturated: further sidelobe suppression stopped registering,
+  which is what a benchmark needs most to be able to see. `t2-001` still
+  discriminates, with naive rounding failing at −10.66 dB against the −14 dB
+  bar. `scripts/verify_sidelobe_metric.py` reproduces the table above, and
+  `tests/test_t2_001.py` pins both the local-maximum property and agreement
+  with continuous refinement.
+
+  This also retires an earlier diagnosis. The gap between the grid reading and
+  a continuous measurement was attributed to grid sampling flattering optimized
+  designs by 0.22–0.26 dB. It was the exclusion radius the whole time: with the
+  metric fixed, the 361×721 grid reading matches continuous refinement to
+  within 0.01 dB on every design measured.
+
 
 - A timed-out agent could be scored as `pass`. Timeouts are now a distinct
   terminal status and the submission is not read.

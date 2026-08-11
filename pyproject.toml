@@ -40,7 +40,7 @@ dev = [
     "types-PyYAML",
 ]
 # Tier-3 tasks score system-level architectures; not needed for Tier 2.
-systems = ["phased-array-systems>=0.9,<1.0"]
+systems = ["phased-array-systems>=0.10,<1.0"]
 # README figure generation, a maintainer task rather than a user requirement.
 # Pinned narrowly because matplotlib's SVG output is byte-stable only within a
 # minor version and CI compares committed figures byte for byte. The marker

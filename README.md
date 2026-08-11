@@ -144,7 +144,7 @@ defeat — reaches −10.66 dB and fails.
 
 | | |
 | --- | --- |
-| ![Peak sidelobe for three approaches against the minus 14 dB requirement: direct rounding and the best global phase rotation both reach minus 10.66 dB and fail, while greedy coordinate descent reaches minus 16.72 dB and passes](https://raw.githubusercontent.com/jman4162/aedl-electromagnetic-design-agent/main/docs/_static/recalibration.svg) | After retargeting to (27°, 10°) no global rotation helps: the best one still leaves 43° of residual against a 90° grid, and scores identically to plain rounding. The requirement now separates approaches instead of being satisfied by a change of phase reference. |
+| ![Peak sidelobe for three approaches against the minus 14 dB requirement: direct rounding and the best global phase rotation both reach minus 10.66 dB and fail, while greedy coordinate descent reaches minus 16.98 dB and passes](https://raw.githubusercontent.com/jman4162/aedl-electromagnetic-design-agent/main/docs/_static/recalibration.svg) | After retargeting to (27°, 10°) no global rotation helps: the best one still leaves 43° of residual against a 90° grid, and scores identically to plain rounding. The requirement now separates approaches instead of being satisfied by a change of phase reference. |
 
 | attempt | outcome | sidelobes | directivity | turns | est. cost | wall |
 |---|---|---|---|---|---|---|
@@ -152,25 +152,38 @@ defeat — reaches −10.66 dB and fails.
 | 2 | pass | −16.52 dB | 26.40 dBi | 32 | $1.06 | 406 s |
 | 3 | pass | −17.02 dB | 26.25 dBi | 27 | $0.93 | 291 s |
 
-Three of three passed, by 1.96, 2.52 and 3.02 dB. Only attempt 3 beat the
-reference solution's −16.72 dB; attempts 1 and 2 were 0.76 and 0.20 dB worse
-than it.
+Three of three passed. The sidelobe column above is what the metric said at the
+time; the metric has since been fixed, and the caveat below gives the corrected
+values.
 
 Two measurement caveats that matter more than the pass rate:
 
-- **The scored metric is optimistically biased for optimized designs.** Read off
-  the task's 361×721 grid, the reference measures −16.72 dB; under continuous
-  local refinement it is −16.50 dB. Naive quantization shows only 0.003 dB of
-  such bias, but any design that sculpts nulls picks up 0.22–0.26 dB, because a
-  sculpted null is narrow enough to fall between samples. The bias is
-  non-monotonic in grid density, so simply refining the grid is not a fix. The
-  benchmark therefore over-credits exactly the designs it exists to
-  discriminate. Fixing this means scoring on a verification grid the agent is
-  not given.
+- **The scored metric was reading the main-lobe skirt.** It reported the highest
+  sample outside a fixed 8° radius of the target. For a 16×16 array steered to
+  27° that radius sits inside the main lobe, so a design whose true sidelobes
+  fall below its own skirt level at 8° was scored on the skirt instead. The
+  reference and attempt 3 both hit that, each reporting a value at exactly 8.00°
+  from the target. The metric is now the second-highest local maximum of the
+  pattern. Corrected: the reference achieves −16.98 dB rather than −16.72, and
+  the three attempts −15.96, −16.52 and −17.59 dB, so only attempt 3 still comes
+  within 0.6 dB of the reference and none beats it.
+
+  The offset is the small part. The metric saturated: once a design pushed its
+  sidelobes below the skirt, further suppression stopped registering, which is
+  the one thing a benchmark has to be able to see.
+
+  This also retires an earlier entry here, which attributed the gap to grid
+  sampling flattering optimized designs by 0.22–0.26 dB. That diagnosis was
+  wrong twice over: the direction was backwards, and the continuous measurement
+  used to establish it was itself clamped to the same 8° radius, so it climbed
+  the skirt and stopped on the boundary. The check had inherited the defect it
+  was checking. With the metric fixed, the 361×721 reading agrees with
+  unconstrained continuous refinement to within 0.01 dB.
+  `scripts/verify_sidelobe_metric.py` reproduces all of it.
 
   | | |
   | --- | --- |
-  | ![Error between the grid reading and continuous refinement, against grid density: direct rounding stays at minus 0.003 dB while coordinate descent reads 0.189 dB better than it actually achieves, peaking at 0.227 dB before falling](https://raw.githubusercontent.com/jman4162/aedl-electromagnetic-design-agent/main/docs/_static/grid-bias.svg) | Direct rounding has broad sidelobes that no grid misses. An optimized design's residual peaks are narrow enough to fall between samples, so the grid reports a better number than the design achieves, and refining the grid does not correct it monotonically. |
+  | ![Error against continuous refinement versus grid density for the coordinate-descent design: the fixed 8 degree radius reads 0.26 dB high at the scored grid and wanders to 0.46 dB as the grid is refined, while the local-maximum metric sits on zero at every density](https://raw.githubusercontent.com/jman4162/aedl-electromagnetic-design-agent/main/docs/_static/grid-bias.svg) | The fixed radius reports the hottest sample on the 8° circle, so which sample that is depends on the grid: it wanders over 0.23 dB and never converges. Local-maximum detection returns a real lobe, and reads the same value at every density. Direct rounding is unaffected either way, because its true sidelobes sit well above the skirt. |
 - **These attempts were not isolated.** They predate the reference-hiding fix,
   and attempt 1's own transcript records that it re-ran the evaluator source
   (`src/aedl/evaluators/array_pattern.py`) to check its work. Re-deriving the
@@ -204,7 +217,7 @@ them.
 3. Thresholds are set so the obvious textbook approach is insufficient. In `t2-001`,
    rounding steering phases onto the 2-bit grid reaches −10.7 dB sidelobes; the
    requirement is −14 dB, and joint optimization of the four phase states reaches
-   −16.7 dB.
+   −17.0 dB.
 4. Hardware constraints (phase-only control, shifter bit depth, dead elements) are
    enforced by the evaluator, not trusted to the agent.
 5. **Check for degenerate shortcuts before trusting a threshold.** The first

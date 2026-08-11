@@ -141,3 +141,71 @@ def test_determinism(evaluate, tmp_path_factory):
     assert {r.requirement_id: r.value for r in r1.requirements} == {
         r.requirement_id: r.value for r in r2.requirements
     }
+
+
+def _fixed_radius_sidelobe(weights, spec, radius_deg):
+    """What the metric reported before: max outside a fixed radius of the target."""
+    from aedl.evaluators.array_pattern import _angular_separation_deg
+
+    ctx = spec.context
+    wavelength = C0 / 10e9
+    geom = pa.create_rectangular_array(16, 16, dx=0.5, dy=0.5, wavelength=wavelength)
+    w = np.asarray(weights, dtype=complex).copy()
+    w[np.asarray(ctx["failed_elements"], dtype=int)] = 0.0
+    theta, phi, pattern_db = pa.compute_full_pattern(
+        geom.x,
+        geom.y,
+        w,
+        pa.wavelength_to_k(wavelength),
+        n_theta=int(spec.evaluator_params["n_theta"]),
+        n_phi=int(spec.evaluator_params["n_phi"]),
+        theta_range=(0.0, np.pi),
+        element_pattern_func=pa.element_pattern,
+        cos_exp_theta=1.0,
+    )
+    tg, pg = np.meshgrid(theta, phi, indexing="ij")
+    sep = _angular_separation_deg(tg, pg, np.radians(THETA), np.radians(PHI))
+    return float(np.max(pattern_db[sep > radius_deg]) - np.max(pattern_db))
+
+
+def test_sidelobe_metric_is_a_local_maximum_not_the_main_lobe_skirt(
+    evaluate, spec, tmp_path_factory
+):
+    """The reported sidelobe must be a real lobe, not a point on the main beam.
+
+    The task used to exclude a fixed 8 degree radius around the target. For a
+    16x16 array steered to 27 degrees that radius sits inside the main lobe, so
+    once a design pushed its true sidelobes below the skirt level at 8 degrees
+    the metric reported the skirt instead and stopped responding to the
+    sidelobes. The reference hit exactly that: -16.72 dB reported against
+    -16.98 dB actually achieved.
+    """
+    weights = _reference_weights()
+    reported = _metric(evaluate(weights, tmp_path_factory.mktemp("sll")), "sidelobes")
+    skirt = _fixed_radius_sidelobe(weights, spec, 8.0)
+
+    # The old fixed radius clipped the skirt in, and the skirt is the higher of
+    # the two, so it understated the design by a quarter of a decibel.
+    assert skirt > reported + 0.2
+    assert reported == pytest.approx(-16.98, abs=0.02)
+
+
+def test_sidelobe_metric_tracks_continuous_refinement(evaluate, tmp_path_factory):
+    """Reading the metric off the scoring grid must not flatter any design.
+
+    Independent measurement, refining each local maximum continuously off the
+    grid, gives these values. The grid reading has to match them, or the task
+    scores optimized designs on sampling luck.
+    """
+    expected = {"naive": -10.67, "reference": -16.98}
+    naive = np.exp(1j * np.round(_ideal_phase(_geometry_pair()) / STEP) * STEP)
+
+    for name, weights in (("naive", naive), ("reference", _reference_weights())):
+        result = evaluate(weights, tmp_path_factory.mktemp(name))
+        assert _metric(result, "sidelobes") == pytest.approx(expected[name], abs=0.02)
+
+
+def _geometry_pair():
+    wavelength = C0 / 10e9
+    geom = pa.create_rectangular_array(16, 16, dx=0.5, dy=0.5, wavelength=wavelength)
+    return geom, pa.wavelength_to_k(wavelength)
