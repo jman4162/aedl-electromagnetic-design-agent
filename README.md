@@ -79,6 +79,15 @@ runs/<UTC>_<task>_<agent>_<id>/
   agent.stdout.log / agent.stderr.log
 ```
 
+`calls.jsonl` appears only when an instrumented call is actually seen. None of the
+three committed bundles has one, and all three record `total_calls: 0`, which is the
+open instrumentation question described under the calibration run below.
+
+The three bundles in `runs/` are committed rather than regenerated, because a
+nondeterministic agent cannot reproduce them. `runs/README.md` explains how to read
+them, in particular that each `result.json` records the score as of 2026-08-10, before
+the sidelobe metric was fixed.
+
 A bundle is written even when the agent crashes, times out, or submits nothing,
 so every attempt stays in the record as scorable evidence.
 

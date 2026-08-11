@@ -5,8 +5,15 @@
 # them, but not published from this repo.
 docs/essay-*.md
 
-# Agent run bundles (regenerate with `aedl run`)
-runs/
+# Agent run bundles are committed. They cannot be regenerated: the agent is
+# nondeterministic, so `aedl run` produces different designs, and the numbers
+# quoted in the README refer to these specific submissions. Keep the junk out.
+runs/**/.DS_Store
+runs/**/__pycache__/
+
+# Derived from the bundles by `aedl report`. Left out because it reports each
+# run's score as recorded at run time, which for the 2026-08-10 attempts
+# predates the sidelobe-metric fix; see runs/README.md.
 leaderboard.md
 
 # Slop-linter virtualenv (scripts/slopcheck.sh installs it on demand)

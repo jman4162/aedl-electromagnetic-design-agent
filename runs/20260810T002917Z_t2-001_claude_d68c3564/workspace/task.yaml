@@ -1,0 +1,59 @@
+id: t2-001
+tier: 2
+title: Low-sidelobe steered beam with 2-bit phase control and element failures
+summary: >
+  Point a 16x16 half-wavelength planar array at (theta, phi) = (27, 10) degrees
+  at 10 GHz using phase-only control with 2-bit phase shifters (four states, 90
+  degrees apart). Thirteen elements listed below are dead: the evaluator forces
+  their weights to zero regardless of the submission. Meet all requirements
+  simultaneously. Rounding the ideal steering phases onto the 2-bit grid points
+  the beam correctly but leaves the sidelobes about 3 dB above the limit, so a
+  compliant design has to do better than direct quantization.
+
+context:
+  array:
+    type: rectangular
+    nx: 16
+    ny: 16
+    dx_wl: 0.5
+    dy_wl: 0.5
+    frequency_ghz: 10.0
+  element:
+    model: cos_q
+    q: 1.0
+  phase_bits: 2
+  target:
+    theta_deg: 27.0
+    phi_deg: 10.0
+  failed_elements: [7, 23, 42, 58, 77, 96, 113, 128, 150, 171, 199, 220, 245]
+  exclusion_radius_deg: 8.0
+
+deliverable:
+  format: npz
+  description: >
+    NumPy .npz file containing a complex array named 'weights' of shape (256,),
+    ordered to match phased_array.create_rectangular_array(16, 16, ...) element
+    ordering. Unit amplitude on all working elements; phases on the 2-bit grid.
+
+evaluator:
+  name: array_pattern
+  params:
+    n_theta: 361
+    n_phi: 721
+
+requirements:
+  - id: steering
+    metric: peak_direction_error_deg
+    max: 1.5
+  - id: sidelobes
+    metric: peak_sidelobe_level_db
+    max: -14.0
+  - id: directivity
+    metric: directivity_dbi
+    min: 25.5
+  - id: phase-quantization
+    metric: phase_grid_error_deg
+    max: 0.1
+  - id: phase-only-control
+    metric: amplitude_error
+    max: 0.001

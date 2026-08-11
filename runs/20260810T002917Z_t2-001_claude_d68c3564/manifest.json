@@ -1,0 +1,132 @@
+{
+  "run_id": "20260810T002917Z_t2-001_claude_d68c3564",
+  "task_id": "t2-001",
+  "task_sha256": "7d08f3c27fbf0f2e3f79fe1aa05fd4329870cda6b0a428235417e905750237ab",
+  "agent": "claude",
+  "status": "pass",
+  "started_utc": "20260810T002917Z",
+  "agent_command": [
+    "claude",
+    "-p",
+    "Read BRIEF.md in the current directory and produce the submission file it asks for. Work in this directory only. When you are done, verify the file exists and has the required contents.",
+    "--output-format",
+    "json",
+    "--permission-mode",
+    "bypassPermissions",
+    "--tools",
+    "Bash,Read,Write,Edit,Glob,Grep",
+    "--setting-sources",
+    "project",
+    "--strict-mcp-config",
+    "--disable-slash-commands",
+    "--exclude-dynamic-system-prompt-sections",
+    "--no-session-persistence",
+    "--model",
+    "sonnet",
+    "--max-budget-usd",
+    "5.0"
+  ],
+  "model": "claude-haiku-4-5-20251001",
+  "isolation": "tmpdir",
+  "instrumented": true,
+  "agent_returncode": 0,
+  "timed_out": false,
+  "agent_wall_time_s": 855.326,
+  "usage": {
+    "input_tokens": 84,
+    "output_tokens": 45925,
+    "cost_usd": 1.8336053,
+    "num_turns": 42,
+    "model": "claude-haiku-4-5-20251001",
+    "extra": {
+      "session_id": "d886dfdb-969c-43d7-a9d4-dee2ebb1266b",
+      "duration_ms": 854477,
+      "duration_api_ms": 499057,
+      "is_error": false,
+      "subtype": "success",
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 555,
+          "outputTokens": 16,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000635,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty"
+        },
+        "claude-sonnet-5": {
+          "inputTokens": 84,
+          "outputTokens": 45925,
+          "cacheReadInputTokens": 2220851,
+          "cacheCreationInputTokens": 79598,
+          "webSearchRequests": 0,
+          "costUSD": 1.8329703000000002,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "canonicalModel": "claude-sonnet-5",
+          "provider": "firstParty"
+        }
+      }
+    }
+  },
+  "calls": {
+    "total_calls": 0,
+    "nested_calls": 0,
+    "calls_by_tier": {},
+    "seconds_by_tier": {},
+    "calls_by_function": {}
+  },
+  "requirements": [
+    {
+      "requirement_id": "steering",
+      "metric": "peak_direction_error_deg",
+      "value": 0.548309017371974,
+      "limit": "<= 1.5",
+      "passed": true
+    },
+    {
+      "requirement_id": "sidelobes",
+      "metric": "peak_sidelobe_level_db",
+      "value": -15.95788037944298,
+      "limit": "<= -14.0",
+      "passed": true
+    },
+    {
+      "requirement_id": "directivity",
+      "metric": "directivity_dbi",
+      "value": 26.554450009125176,
+      "limit": ">= 25.5",
+      "passed": true
+    },
+    {
+      "requirement_id": "phase-quantization",
+      "metric": "phase_grid_error_deg",
+      "value": 0.0,
+      "limit": "<= 0.1",
+      "passed": true
+    },
+    {
+      "requirement_id": "phase-only-control",
+      "metric": "amplitude_error",
+      "value": 2.220446049250313e-16,
+      "limit": "<= 0.001",
+      "passed": true
+    }
+  ],
+  "error": null,
+  "environment": {
+    "python": "3.12.11",
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "dependencies": {
+      "aedl": "0.0.1",
+      "phased-array-modeling": "1.4.0",
+      "phased-array-systems": "0.9.0",
+      "numpy": "2.5.2",
+      "scipy": "1.18.0",
+      "edgefem": "not installed"
+    }
+  }
+}

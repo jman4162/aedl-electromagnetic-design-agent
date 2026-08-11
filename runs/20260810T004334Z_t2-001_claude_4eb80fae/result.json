@@ -1,0 +1,55 @@
+{
+  "task_id": "t2-001",
+  "passed": true,
+  "requirements": [
+    {
+      "requirement_id": "steering",
+      "metric": "peak_direction_error_deg",
+      "value": 0.6727317732281461,
+      "limit": "<= 1.5",
+      "passed": true
+    },
+    {
+      "requirement_id": "sidelobes",
+      "metric": "peak_sidelobe_level_db",
+      "value": -16.519445124384713,
+      "limit": "<= -14.0",
+      "passed": true
+    },
+    {
+      "requirement_id": "directivity",
+      "metric": "directivity_dbi",
+      "value": 26.401960993849993,
+      "limit": ">= 25.5",
+      "passed": true
+    },
+    {
+      "requirement_id": "phase-quantization",
+      "metric": "phase_grid_error_deg",
+      "value": 0.0,
+      "limit": "<= 0.1",
+      "passed": true
+    },
+    {
+      "requirement_id": "phase-only-control",
+      "metric": "amplitude_error",
+      "value": 0.0,
+      "limit": "<= 0.001",
+      "passed": true
+    }
+  ],
+  "info": {
+    "metrics": {
+      "amplitude_error": 0.0,
+      "phase_grid_error_deg": 0.0,
+      "peak_direction_error_deg": 0.6727317732281461,
+      "peak_sidelobe_level_db": -16.519445124384713,
+      "directivity_dbi": 26.401960993849993
+    },
+    "n_elements": 256,
+    "n_failed": 13
+  },
+  "cost": {
+    "evaluation_wall_time_s": 1.162
+  }
+}

@@ -76,6 +76,12 @@ def _peak_sidelobe_db(pattern_db: npt.NDArray[np.float64]) -> float:
 
     visited = np.zeros(pattern_db.shape, dtype=bool)
     for n, (i, j) in enumerate(zip(rows, cols, strict=True)):
+        if visited[i, j]:
+            # The duplicated endpoint column holds a second copy of every
+            # sample in column 0. Without this the copy of the main peak looks
+            # like a fresh lobe of its own, and the metric returns 0 dB for any
+            # beam steered to phi = 0.
+            continue
         has_higher_neighbour = False
         for di in (-1, 0, 1):
             ii = i + di

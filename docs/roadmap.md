@@ -16,8 +16,10 @@ built first, and the calibration log below is what it caught.*
 
 Right now every threshold in `t2-001` is a hand-derived guess. It is calibrated
 against *analytic* solutions only. (Those were the original (30°, 0°) figures:
-naive rounding −5.9 dB, dithered quantization −12 dB. Both were superseded by
-the retarget to (27°, 10°) recorded in the calibration log.) No agent had
+naive rounding −5.9 dB, dithered quantization −12 dB, both read under the
+pre-fix fixed-radius metric. Under local-maximum detection naive rounding at
+that geometry is −7.18 dB, still failing the −9 dB bar it faced. All of it was
+superseded by the retarget to (27°, 10°) recorded in the calibration log.) No agent had
 attempted it, so where a frontier model landed relative to that line was
 unmeasured. Writing five more tasks before
 finding out risks a suite that is uniformly trivial or uniformly impossible,

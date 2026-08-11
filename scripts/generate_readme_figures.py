@@ -33,6 +33,8 @@ import phased_array as pa  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[1]
 TARGET = REPO / "docs" / "_static"
+# Set by --webp to also emit raster copies somewhere outside this repo.
+WEBP_DIR: Path | None = None
 SOLVE = REPO / "tasks" / "t2-001-steered-beam-2bit" / "reference" / "solve.py"
 GRID_BIAS_DATA = TARGET / "grid-bias.json"
 
@@ -288,6 +290,9 @@ def verify_against_evaluator() -> None:
 # --- figures ----------------------------------------------------------------
 
 
+WEBP_WIDTH_PX = 1600
+
+
 def save(fig, name: str) -> Path:
     TARGET.mkdir(parents=True, exist_ok=True)
     path = TARGET / name
@@ -298,6 +303,17 @@ def save(fig, name: str) -> Path:
         facecolor=SURFACE,
         metadata={"Date": None},
     )
+    if WEBP_DIR is not None:
+        # A raster copy for consumers that cannot take SVG. Sized by DPI so the
+        # result lands near WEBP_WIDTH_PX regardless of the figure's inches.
+        WEBP_DIR.mkdir(parents=True, exist_ok=True)
+        fig.savefig(
+            WEBP_DIR / f"{Path(name).stem}.webp",
+            format="webp",
+            dpi=WEBP_WIDTH_PX / fig.get_size_inches()[0],
+            bbox_inches="tight",
+            facecolor=SURFACE,
+        )
     plt.close(fig)
     return path
 
@@ -506,7 +522,17 @@ def main() -> None:
         action="store_true",
         help="rebuild the cached grid-bias measurement (slow, minutes)",
     )
+    parser.add_argument(
+        "--webp",
+        metavar="DIR",
+        type=Path,
+        help=f"also write {WEBP_WIDTH_PX}px-wide WebP copies to DIR",
+    )
     args = parser.parse_args()
+
+    if args.webp is not None:
+        global WEBP_DIR
+        WEBP_DIR = args.webp.expanduser().resolve()
 
     with plt.rc_context(STYLE):
         verify_against_evaluator()

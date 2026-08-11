@@ -209,3 +209,20 @@ def _geometry_pair():
     wavelength = C0 / 10e9
     geom = pa.create_rectangular_array(16, 16, dx=0.5, dy=0.5, wavelength=wavelength)
     return geom, pa.wavelength_to_k(wavelength)
+
+
+def test_sidelobe_metric_handles_a_beam_steered_to_phi_zero(evaluate, geometry, tmp_path_factory):
+    """A peak at phi = 0 must not be counted twice.
+
+    compute_full_pattern spans a full turn with the endpoint duplicated, so
+    column 0 and the last column hold the same samples. A beam steered to
+    phi = 0 therefore has its peak in both, and the second copy used to look
+    like a fresh lobe, making the metric report 0 dB.
+    """
+    geom, k = geometry
+    ideal = np.angle(pa.steering_vector(k, geom.x, geom.y, 30.0, 0.0))
+    result = evaluate(np.exp(1j * ideal), tmp_path_factory.mktemp("phi0"))
+
+    sll = _metric(result, "sidelobes")
+    assert sll < -5.0, f"metric collapsed on a phi=0 beam: {sll}"
+    assert sll == pytest.approx(-12.32, abs=0.05)

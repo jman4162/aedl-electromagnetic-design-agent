@@ -67,6 +67,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `tests/test_t2_001.py` pins both the local-maximum property and agreement
   with continuous refinement.
 
+- The new peak-sidelobe metric returned 0 dB for any beam steered to phi = 0.
+  `compute_full_pattern` spans a full turn with the endpoint duplicated, so the
+  first and last columns hold identical samples. A peak at phi = 0 appears in
+  both, and the descending walk counted the second copy as a fresh lobe.
+  Already-visited samples are now skipped. `t2-001` steers to phi = 10 degrees
+  and was never affected; the figure generator, which plots the original
+  (30 degrees, 0) geometry, is what surfaced it. Under the fixed metric naive
+  rounding at that geometry reads −7.18 dB rather than the −5.92 dB the
+  fixed-radius metric gave, and still fails the −9 dB bar it faced.
+
   This also retires an earlier diagnosis. The gap between the grid reading and
   a continuous measurement was attributed to grid sampling flattering optimized
   designs by 0.22–0.26 dB. It was the exclusion radius the whole time: with the

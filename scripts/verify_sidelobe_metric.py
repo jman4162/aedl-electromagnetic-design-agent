@@ -162,12 +162,25 @@ def main() -> None:
         ("direct 2-bit rounding", np.exp(1j * (np.round(ideal / step) * step))),
         ("reference solution", reference.solve()),
     ]
-    for bundle in sorted((REPO / "runs").glob("*/workspace/submission.npz")):
+    bundles = sorted((REPO / "runs").glob("*/workspace/submission.npz"))
+    for bundle in bundles:
         with np.load(bundle) as data:
             designs.append((f"agent {bundle.parts[-3][-8:]}", data["weights"]))
 
     tmp = REPO / ".verify_submission.npz"
-    print(f"scoring grid {n_theta} x {n_phi}, search grid {SEARCH_REFINE}x denser\n")
+    print(f"scoring grid {n_theta} x {n_phi}, search grid {SEARCH_REFINE}x denser")
+    if bundles:
+        print(f"{len(bundles)} agent submission(s) from runs/\n")
+    else:
+        # Silence here is the failure mode worth avoiding: Path.glob on a
+        # missing directory yields nothing, so without this the table would
+        # print two rows and exit 0, looking like it had covered everything.
+        print(
+            "WARNING: no agent submissions found under runs/. The agent rows of the\n"
+            "         published table cannot be reproduced from this checkout. They are\n"
+            "         not regenerable by re-running the agent either, since it is\n"
+            "         nondeterministic. See runs/README.md.\n"
+        )
     print(f"{'design':<24}{'evaluator':>11}{'refined':>10}{'gap':>7}{'8deg radius':>13}")
     try:
         for name, weights in designs:
