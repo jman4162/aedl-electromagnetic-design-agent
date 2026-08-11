@@ -22,19 +22,31 @@ scientific-agent frameworks are a non-goal.
 
 ## Status
 
-Pre-release. What works today: the task format, one Tier-2 evaluator, one
-calibrated task (`t2-001`), and the agent harness (`aedl run` / `aedl report`)
-with cost accounting. What does not exist yet: Tiers 1 and 3, and the remaining
-five tasks. `docs/roadmap.md` tracks the rest and records why each design
-decision was made.
+Pre-release. What works today: the task format, evaluators for Tiers 2 and 3,
+two calibrated tasks (`t2-001`, `t3-001`), and the agent harness (`aedl run` /
+`aedl report`) with cost accounting and optional MCP server attachment. What
+does not exist yet: Tier 1 and the remaining four Tier-2 tasks.
+`docs/roadmap.md` tracks the rest and records why each design decision was
+made.
 
-Planned tiers:
+Tiers:
 
-| tier | scope | physics |
-|---|---|---|
-| 1, element | unit cells, patch antennas | full-wave, [EdgeFEM](https://github.com/jman4162/EdgeFEM) |
-| 2, aperture | array synthesis under hardware constraints | [phased-array-modeling](https://github.com/jman4162/Phased-Array-Antenna-Model) |
-| 3, system | requirement-driven trades, link budgets | [phased-array-systems](https://github.com/jman4162/phased-array-systems) |
+| tier | scope | physics | status |
+|---|---|---|---|
+| 1, element | unit cells, patch antennas | full-wave, [EdgeFEM](https://github.com/jman4162/EdgeFEM) | planned |
+| 2, aperture | array synthesis under hardware constraints | [phased-array-modeling](https://github.com/jman4162/Phased-Array-Antenna-Model) | `t2-001` |
+| 3, system | requirement-driven architecture trades | [phased-array-systems](https://github.com/jman4162/phased-array-systems), cross-checked by [phased-array-modeling](https://github.com/jman4162/Phased-Array-Antenna-Model) and [opensatcom](https://github.com/jman4162/opensatcom) | `t3-001` |
+
+`t3-001` is the cross-layer task: design a 28 GHz LEO terminal architecture
+(aperture, taper, quantization, PA class, digitization) that closes the link
+worst-case over a held-out envelope of scan/rain/sky/failure conditions,
+under prime-power and unit-cost ceilings priced from a parts table. Pattern
+claims are recomputed by full pattern integration, and the link margin is
+independently recomputed by opensatcom, a codebase the design model shares
+nothing with; clear-sky agreement between the two is itself a scored
+requirement (their rain models diverge by an order of magnitude, which is why
+rain agreement deliberately is not). Every threshold was frozen from
+measurement; `scripts/calibrate_t3_001.py` reproduces each one.
 
 ## Install
 
@@ -64,6 +76,17 @@ score at all (timeout, crash, or no submission), so CI can gate on it.
 ```bash
 aedl run --task t2-001 --agent claude --model sonnet --attempts 3
 aedl report --runs-dir runs --out leaderboard.md
+```
+
+To attach MCP servers (the composition experiment t3-001 exists to measure),
+pass an explicit config; it composes with the pinned `--strict-mcp-config`,
+so a run uses exactly these servers and inherits nothing from your personal
+configuration:
+
+```bash
+aedl run --task t3-001 --agent claude --model sonnet \
+  --mcp-config mcp-servers.json \
+  --mcp-tools mcp__opensatcom__link_snapshot,mcp__opensatcom__link_validate_config
 ```
 
 `aedl run` builds an isolated workspace containing only `task.yaml` and a

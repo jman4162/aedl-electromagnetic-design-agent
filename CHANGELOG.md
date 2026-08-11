@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `t3-001`: the first Tier-3 task. A 28 GHz LEO SATCOM terminal architecture
+  must close the link worst-case over a held-out envelope (scan, rain, sky
+  noise, seeded element failures) under prime-power and unit-cost ceilings
+  priced from a parts table. Efficiency, noise figure, and costs are set by
+  the task and rejected if submitted, closing the free-lunch axes. The
+  `satcom_terminal` evaluator recomputes pattern claims by full integration
+  (phased-array-modeling) and the link margin with opensatcom; clear-sky
+  agreement between the two independent codebases is a scored requirement.
+  Their rain models diverge by an order of magnitude (P.618 slant path vs a
+  terrestrial effective-path model), so rain agreement deliberately is not:
+  both models must independently close the link. Every threshold frozen from
+  measurement; `scripts/calibrate_t3_001.py` reproduces them, and the
+  reference is a transparent priced DOE with a documented 1.5 dB sidelobe
+  robustness buffer against failure-seed draws.
+- Harness: `deliverable.filename` and `deliverable.scoring_notes` let a task
+  demand a non-npz submission and describe its own scoring; the claude
+  adapter takes `--mcp-config`/`--mcp-tools` (explicit config composes with
+  the kept `--strict-mcp-config`; sha256 of the config lands in the run
+  record); the call-count shim patches dotted `module:Class.method` targets,
+  and opensatcom joins the reduced-order tier, the tracked packages, and the
+  interpreter probe.
+
 - Task specification format (`tasks/<id>/task.yaml`) with requirements expressed
   as a metric and a bound, scored by a named evaluator from a registry.
 - `array_pattern` evaluator for Tier-2 aperture tasks, built on
