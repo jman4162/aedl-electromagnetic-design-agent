@@ -256,7 +256,7 @@ def solve(verbose: bool = False) -> dict:
         raise RuntimeError("no design satisfies the declared requirements")
 
     # Cheapest-first, then check the expensive sidelobe requirement.
-    for cost_usd, prime_w, design in sorted(designs, key=lambda d: (d[0], d[1])):
+    for cost_usd, _prime_w, design in sorted(designs, key=lambda d: (d[0], d[1])):
         arch = _build_arch(task, design, design["tx_power_w_per_elem"])
         sll = _sll_at(task, arch, corner["scan_deg"], LOCAL_SEED)
         # The evaluator scores the max over its held-out failure seeds, which
