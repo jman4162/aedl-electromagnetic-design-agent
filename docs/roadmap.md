@@ -262,8 +262,13 @@ the evaluator scores over an envelope withheld from it: scan angles across the f
 of regard, rain rate, temperature, element-failure seeds, and mission hour points.
 The requirement is worst-case over the envelope. This turns the task from
 optimization into design that must tolerate variation, and mirrors the
-generalization gap the 2026 metasurface-agent work reported (in-distribution
-success 74%, held-out families far worse).
+generalization gap the 2026 metasurface-agent work reported. (Corrected against
+the abstract of arXiv:2604.01480: skill evolution raised same-type success from
+38% to 74%; of the two held-out families, one held near ceiling at 0.90 and the
+other started at 0.20 before skill evolution recovered it to 0.90. The earlier
+wording here, "held-out families far worse", overstated it. The lesson stands
+in a sharper form: initial generalization can be weak, and an evaluator only
+measures the cases it has.)
 
 **2. Cross-model verification.** Pattern-related claims get recomputed with
 `phased-array-modeling`'s full pattern integration rather than the reduced-order
