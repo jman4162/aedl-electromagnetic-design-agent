@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "opensatcom": {
+      "command": "/Users/johnhodge/Documents/code/aedl/.venv/bin/opensatcom",
+      "args": ["mcp", "serve"]
+    },
+    "apab": {
+      "command": "/Users/johnhodge/Documents/code/agentic-phased-array-builder/.venv/bin/apab",
+      "args": ["mcp", "serve"]
+    }
+  }
+}

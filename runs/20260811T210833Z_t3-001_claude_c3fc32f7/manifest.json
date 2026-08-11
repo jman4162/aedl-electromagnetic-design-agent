@@ -1,0 +1,110 @@
+{
+  "run_id": "20260811T210833Z_t3-001_claude_c3fc32f7",
+  "task_id": "t3-001",
+  "task_sha256": "bed6abdf1e91a49d532a0c5f3f0997fc23ff5beed9854eb3fc0657814164921c",
+  "agent": "claude",
+  "status": "timeout",
+  "started_utc": "20260811T210833Z",
+  "agent_command": [
+    "claude",
+    "-p",
+    "Read BRIEF.md in the current directory and produce the submission file it asks for. Work in this directory only. When you are done, verify the file exists and has the required contents.",
+    "--output-format",
+    "json",
+    "--permission-mode",
+    "bypassPermissions",
+    "--tools",
+    "Bash,Read,Write,Edit,Glob,Grep",
+    "--setting-sources",
+    "project",
+    "--strict-mcp-config",
+    "--disable-slash-commands",
+    "--exclude-dynamic-system-prompt-sections",
+    "--no-session-persistence",
+    "--model",
+    "sonnet",
+    "--max-budget-usd",
+    "5.0"
+  ],
+  "model": "claude-sonnet-5",
+  "isolation": "tmpdir",
+  "instrumented": true,
+  "agent_returncode": 124,
+  "timed_out": true,
+  "agent_wall_time_s": 1800.254,
+  "usage": {
+    "input_tokens": 132,
+    "output_tokens": 74909,
+    "cache_read_tokens": 7162930,
+    "cache_creation_tokens": 161127,
+    "cost_usd": 4.240307,
+    "num_turns": 68,
+    "model": "claude-sonnet-5",
+    "extra": {
+      "session_id": "677ad9ae-d396-4494-858f-1aef33157943",
+      "duration_ms": 1799457,
+      "duration_api_ms": 823957,
+      "is_error": true,
+      "subtype": "error_during_execution",
+      "stop_reason": "tool_use",
+      "permission_denials": [],
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 555,
+          "outputTokens": 16,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000635,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty"
+        },
+        "claude-sonnet-5": {
+          "inputTokens": 132,
+          "outputTokens": 74909,
+          "cacheReadInputTokens": 7162930,
+          "cacheCreationInputTokens": 161127,
+          "webSearchRequests": 0,
+          "costUSD": 4.239672,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "canonicalModel": "claude-sonnet-5",
+          "provider": "firstParty"
+        }
+      }
+    }
+  },
+  "calls": {
+    "total_calls": 0,
+    "nested_calls": 0,
+    "calls_by_tier": {},
+    "seconds_by_tier": {},
+    "calls_by_function": {}
+  },
+  "requirements": [],
+  "error": "agent exceeded the 1800s limit",
+  "environment": {
+    "python": "3.12.11",
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "dependencies": {
+      "aedl": "0.0.1",
+      "phased-array-modeling": "1.4.0",
+      "phased-array-systems": "0.10.1",
+      "opensatcom": "0.6.0",
+      "numpy": "2.5.2",
+      "scipy": "1.18.0",
+      "edgefem": "not installed"
+    }
+  },
+  "agent_interpreter": {
+    "executable": "/Users/johnhodge/.pyenv/versions/3.12.11/bin/python3",
+    "python": "3.12.11",
+    "numpy": "2.5.1",
+    "phased_array": "1.4.0",
+    "phased_array_systems": "0.10.1",
+    "opensatcom": "0.6.0"
+  },
+  "auth": {}
+}

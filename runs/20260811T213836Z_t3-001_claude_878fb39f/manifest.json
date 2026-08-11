@@ -1,0 +1,171 @@
+{
+  "run_id": "20260811T213836Z_t3-001_claude_878fb39f",
+  "task_id": "t3-001",
+  "task_sha256": "bed6abdf1e91a49d532a0c5f3f0997fc23ff5beed9854eb3fc0657814164921c",
+  "agent": "claude",
+  "status": "pass",
+  "started_utc": "20260811T213836Z",
+  "agent_command": [
+    "claude",
+    "-p",
+    "Read BRIEF.md in the current directory and produce the submission file it asks for. Work in this directory only. When you are done, verify the file exists and has the required contents.",
+    "--output-format",
+    "json",
+    "--permission-mode",
+    "bypassPermissions",
+    "--tools",
+    "Bash,Read,Write,Edit,Glob,Grep,mcp__opensatcom__link_validate_config,mcp__opensatcom__link_snapshot,mcp__opensatcom__trade_doe,mcp__opensatcom__trade_batch,mcp__opensatcom__trade_pareto,mcp__apab__pattern_compute,mcp__apab__system_evaluate,mcp__apab__system_trade_study",
+    "--setting-sources",
+    "project",
+    "--mcp-config",
+    "/Users/johnhodge/Documents/code/aedl/mcp-servers-t3.json",
+    "--strict-mcp-config",
+    "--disable-slash-commands",
+    "--exclude-dynamic-system-prompt-sections",
+    "--no-session-persistence",
+    "--model",
+    "sonnet",
+    "--max-budget-usd",
+    "5.0"
+  ],
+  "model": "claude-sonnet-5",
+  "isolation": "tmpdir",
+  "instrumented": true,
+  "agent_returncode": 0,
+  "timed_out": false,
+  "agent_wall_time_s": 1061.764,
+  "usage": {
+    "input_tokens": 152,
+    "output_tokens": 71917,
+    "cache_read_tokens": 8670441,
+    "cache_creation_tokens": 208497,
+    "cost_usd": 4.931945300000001,
+    "num_turns": 76,
+    "model": "claude-sonnet-5",
+    "extra": {
+      "session_id": "b6f65dd1-3cc5-4552-9645-8c64d6a2a630",
+      "duration_ms": 1060323,
+      "duration_api_ms": 767760,
+      "is_error": false,
+      "subtype": "success",
+      "stop_reason": "end_turn",
+      "permission_denials": [],
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 555,
+          "outputTokens": 13,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.00062,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty"
+        },
+        "claude-sonnet-5": {
+          "inputTokens": 152,
+          "outputTokens": 71917,
+          "cacheReadInputTokens": 8670441,
+          "cacheCreationInputTokens": 208497,
+          "webSearchRequests": 0,
+          "costUSD": 4.931325300000001,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "canonicalModel": "claude-sonnet-5",
+          "provider": "firstParty"
+        }
+      },
+      "mcp_config_sha256": "a7f69d212c9dc8d5e4d3aefd4bde11d138590d5312c6877ce3a80e35aa6c08af",
+      "mcp_tools": "mcp__opensatcom__link_validate_config,mcp__opensatcom__link_snapshot,mcp__opensatcom__trade_doe,mcp__opensatcom__trade_batch,mcp__opensatcom__trade_pareto,mcp__apab__pattern_compute,mcp__apab__system_evaluate,mcp__apab__system_trade_study"
+    }
+  },
+  "calls": {
+    "total_calls": 0,
+    "nested_calls": 0,
+    "calls_by_tier": {},
+    "seconds_by_tier": {},
+    "calls_by_function": {}
+  },
+  "requirements": [
+    {
+      "requirement_id": "link-margin",
+      "metric": "worst_case_link_margin_db",
+      "value": 2.5261021248745976,
+      "limit": ">= 0.0",
+      "passed": true
+    },
+    {
+      "requirement_id": "sidelobes",
+      "metric": "worst_case_pattern_sll_db",
+      "value": -20.30614038270805,
+      "limit": "<= -16.0",
+      "passed": true
+    },
+    {
+      "requirement_id": "independent-link",
+      "metric": "opensatcom_worst_case_margin_db",
+      "value": 14.234513970489843,
+      "limit": ">= 0.0",
+      "passed": true
+    },
+    {
+      "requirement_id": "clearsky-agreement",
+      "metric": "crosscheck_clearsky_margin_disagreement_db",
+      "value": 0.3037338591183243,
+      "limit": "<= 1.2",
+      "passed": true
+    },
+    {
+      "requirement_id": "gain-crosscheck",
+      "metric": "crosscheck_gain_disagreement_db",
+      "value": 0.07389622050730438,
+      "limit": "<= 0.5",
+      "passed": true
+    },
+    {
+      "requirement_id": "prime-power",
+      "metric": "prime_power_w",
+      "value": 364.93320000000006,
+      "limit": "<= 450.0",
+      "passed": true
+    },
+    {
+      "requirement_id": "unit-cost",
+      "metric": "unit_cost_usd",
+      "value": 40200.0,
+      "limit": "<= 45000.0",
+      "passed": true
+    },
+    {
+      "requirement_id": "grating",
+      "metric": "grating_margin_lambda",
+      "value": 0.03589838486224539,
+      "limit": ">= 0.0",
+      "passed": true
+    }
+  ],
+  "error": null,
+  "environment": {
+    "python": "3.12.11",
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "dependencies": {
+      "aedl": "0.0.1",
+      "phased-array-modeling": "1.4.0",
+      "phased-array-systems": "0.10.1",
+      "opensatcom": "0.6.0",
+      "numpy": "2.5.2",
+      "scipy": "1.18.0",
+      "edgefem": "not installed"
+    }
+  },
+  "agent_interpreter": {
+    "executable": "/Users/johnhodge/.pyenv/versions/3.12.11/bin/python3",
+    "python": "3.12.11",
+    "numpy": "2.5.1",
+    "phased_array": "1.4.0",
+    "phased_array_systems": "0.10.1",
+    "opensatcom": "0.6.0"
+  },
+  "auth": {}
+}

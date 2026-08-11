@@ -1,0 +1,133 @@
+id: t3-001
+tier: 3
+title: 28 GHz LEO SATCOM terminal architecture under power and cost ceilings
+summary: >
+  Design the architecture of a Ka-band (28 GHz) transmit phased-array ground
+  terminal for a LEO uplink. The terminal must close the link worst-case over
+  an evaluation envelope withheld from this brief (scan angles across the
+  field of regard, rain and correlated sky noise up to the stated climate
+  bounds, and random element-failure draws) while staying under a prime-power
+  ceiling and a unit-cost ceiling priced from the parts table below.
+  Brute-forcing element count violates the ceilings before it closes the
+  worst-case link; a compliant design has to work the aperture-size /
+  power-per-element / taper / quantization trade.
+
+context:
+  mission: leo_uplink_terminal
+  link:
+    frequency_ghz: 28.0
+    bandwidth_mhz: 50.0
+    required_snr_db: 6.0
+    satellite_rx_gain_db: 38.0
+    satellite_noise_figure_db: 2.5
+    duty_cycle: 1.0
+  nominal_scenario:
+    elevation_deg: 45.0
+    slant_range_km: 815.0
+    scan_angle_deg: 30.0
+    rain_rate_mmh: 0.0
+    sky_noise_temp_k: 150.0
+  evaluation_envelope_bounds:
+    scan_angle_deg_max: 60.0
+    elevation_deg_min: 20.0
+    slant_range_km_max: 1390.0
+    rain_rate_mmh_max: 2.5
+    sky_noise_temp_k_max: 275.0
+    element_failure_rate: 0.02
+  constraints:
+    prime_power_ceiling_w: 450.0
+    unit_cost_ceiling_usd: 45000.0
+  parts:
+    element_base_cost_usd: 55.0
+    pa_classes:
+      A: {pa_efficiency: 0.15, cost_adder_usd_per_elem: 15.0}
+      B: {pa_efficiency: 0.25, cost_adder_usd_per_elem: 45.0}
+      C: {pa_efficiency: 0.35, cost_adder_usd_per_elem: 110.0}
+    phase_shifter:
+      3: 5.0
+      4: 12.0
+      5: 25.0
+      6: 50.0
+    adc_cost_usd_per_channel: 40.0
+    rx_power_w_per_elem: 0.15
+    feed_loss_db: 1.5
+    tx_power_w_per_elem_max: 2.0
+  element:
+    model: cos_q
+    q: 1.3
+
+deliverable:
+  filename: architecture.yaml
+  format: yaml
+  description: >
+    A YAML file named architecture.yaml with exactly these keys and no others.
+    array: {nx, ny, dx_lambda, dy_lambda, taper_type, taper_sll_db, phase_bits}
+    with taper_type in {uniform, taylor, chebyshev} and taper_sll_db negative;
+    rf: {tx_power_w_per_elem, pa_class} with pa_class in {A, B, C} and
+    0 < tx_power_w_per_elem <= 2.0;
+    digital: {digitization_level, adc_enob, subarray_nx, subarray_ny} with
+    digitization_level in {element, subarray, analog}. nx and ny must tile
+    into power-of-two subarrays (subarray_nx/subarray_ny in {2,4,8,16},
+    nx divisible by subarray_nx, ny by subarray_ny); phase_bits in {3,4,5,6}.
+    Efficiency, noise figure, losses, and all costs are set by the parts
+    table; submitting any of them is an error.
+  scoring_notes:
+    - >
+      Margins are scored worst-case over a held-out evaluation envelope inside
+      the declared bounds, including seeded random element failures at the
+      stated rate. Do not design only for the nominal scenario.
+    - >
+      Pattern claims (gain, sidelobes) are recomputed by full pattern
+      integration with phased-array-modeling, and the link is independently
+      recomputed with the opensatcom toolkit. Metrics come from your file
+      alone; nothing you write in prose is scored.
+    - >
+      numpy, phased_array, phased_array_systems, and opensatcom are installed
+      in your environment.
+
+evaluator:
+  name: satcom_terminal
+  params:
+    envelope:
+      points:
+        - {scan_deg: 0.0,  elevation_deg: 88.0, range_km: 603.0,  rain_mmh: 0.0, sky_temp_k: 152.0}
+        - {scan_deg: 17.0, elevation_deg: 71.0, range_km: 632.0,  rain_mmh: 0.0, sky_temp_k: 160.0}
+        - {scan_deg: 33.5, elevation_deg: 52.0, range_km: 741.0,  rain_mmh: 0.8, sky_temp_k: 205.0}
+        - {scan_deg: 41.0, elevation_deg: 41.0, range_km: 856.0,  rain_mmh: 1.2, sky_temp_k: 228.0}
+        - {scan_deg: 48.5, elevation_deg: 33.0, range_km: 1004.0, rain_mmh: 1.7, sky_temp_k: 244.0}
+        - {scan_deg: 54.0, elevation_deg: 27.5, range_km: 1153.0, rain_mmh: 2.0, sky_temp_k: 259.0}
+        - {scan_deg: 58.0, elevation_deg: 22.5, range_km: 1311.0, rain_mmh: 2.3, sky_temp_k: 269.0}
+        - {scan_deg: 60.0, elevation_deg: 20.0, range_km: 1390.0, rain_mmh: 2.5, sky_temp_k: 275.0}
+        - {scan_deg: 60.0, elevation_deg: 20.0, range_km: 1390.0, rain_mmh: 0.0, sky_temp_k: 190.0}
+      failure_seeds: [101, 211, 307, 401, 503]
+    crosscheck:
+      pam_n_theta: 361
+      pam_n_phi: 721
+    opensatcom:
+      availability_target: 0.995
+
+requirements:
+  - id: link-margin
+    metric: worst_case_link_margin_db
+    min: 0.0
+  - id: sidelobes
+    metric: worst_case_pattern_sll_db
+    max: -16.0
+  - id: independent-link
+    metric: opensatcom_worst_case_margin_db
+    min: 0.0
+  - id: clearsky-agreement
+    metric: crosscheck_clearsky_margin_disagreement_db
+    max: 1.2
+  - id: gain-crosscheck
+    metric: crosscheck_gain_disagreement_db
+    max: 0.5
+  - id: prime-power
+    metric: prime_power_w
+    max: 450.0
+  - id: unit-cost
+    metric: unit_cost_usd
+    max: 45000.0
+  - id: grating
+    metric: grating_margin_lambda
+    min: 0.0

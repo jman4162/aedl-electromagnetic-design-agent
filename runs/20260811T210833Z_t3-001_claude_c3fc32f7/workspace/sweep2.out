@@ -1,0 +1,15 @@
+nx=20 bits=5 taper=-24: gain_diff=0.346 worst_sll=-15.540
+nx=20 bits=5 taper=-25: gain_diff=0.359 worst_sll=-16.024
+nx=20 bits=5 taper=-26: gain_diff=0.372 worst_sll=-16.485
+nx=20 bits=5 taper=-27: gain_diff=0.385 worst_sll=-16.922
+nx=20 bits=5 taper=-28: gain_diff=0.397 worst_sll=-17.334
+nx=21 bits=5 taper=-24: gain_diff=0.310 worst_sll=-16.451
+nx=21 bits=5 taper=-25: gain_diff=0.323 worst_sll=-16.975
+nx=21 bits=5 taper=-26: gain_diff=0.336 worst_sll=-17.475
+nx=21 bits=5 taper=-27: gain_diff=0.348 worst_sll=-17.951
+nx=21 bits=5 taper=-28: gain_diff=0.360 worst_sll=-18.279
+nx=22 bits=5 taper=-24: gain_diff=0.288 worst_sll=-15.522
+nx=22 bits=5 taper=-25: gain_diff=0.300 worst_sll=-16.030
+nx=22 bits=5 taper=-26: gain_diff=0.313 worst_sll=-16.516
+nx=22 bits=5 taper=-27: gain_diff=0.325 worst_sll=-16.978
+nx=22 bits=5 taper=-28: gain_diff=0.336 worst_sll=-17.418

@@ -48,6 +48,15 @@ requirement (their rain models diverge by an order of magnitude, which is why
 rain agreement deliberately is not). Every threshold was frozen from
 measurement; `scripts/calibrate_t3_001.py` reproduces each one.
 
+First calibration result (2026-08-11, Sonnet 5, three attempts per arm,
+bundles in `runs/`): **library-only 0/3** (one ceiling bust with 3.55 dB of
+unneeded margin, one no-submission, one timeout — two of three ran out their
+30 minutes writing their own verification scripts) against **MCP-attached
+2/3** (the failure tuned worst-case margin to −1.1 dB, which the held-out
+envelope caught). Three attempts per arm shows a direction and cannot show significance; the
+comparison is the experiment this task exists to run, and `runs/README.md`
+carries the full caveats.
+
 ## Install
 
 Clone the repository rather than installing from an index: the tasks live in
