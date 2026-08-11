@@ -282,7 +282,7 @@ The main-lobe exclusion mask was too narrow:
 
 ```python
 bw = compute_beamwidth(pattern_db, angles_deg, -3.0)  # full -3 dB width
-main_lobe_width_deg = bw * 2      # total exclusion window
+main_lobe_width_deg = bw * 2  # total exclusion window
 half_width = main_lobe_width_deg / 2  # == bw, so the mask spans ±1×HPBW
 mask = np.abs(angles_deg - peak_angle) > half_width
 ```
