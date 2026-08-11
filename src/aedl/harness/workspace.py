@@ -17,6 +17,35 @@ from aedl.spec import TaskSpec
 
 SUBMISSION_NAME = "submission.npz"
 
+# The default array-task scoring notes; a task overrides them with a
+# deliverable.scoring_notes list when its scoring works differently.
+_DEFAULT_ARRAY_NOTES = """\
+- The evaluator applies the hardware constraints and any element failures listed
+  in the design context itself. Do not pre-apply failures to your weights;
+  submit the weights you would program into working hardware.
+- Metrics are computed from your file alone. Nothing you write in prose is scored.
+- You may use any method. `numpy` and the `phased_array` package are installed."""
+
+
+def submission_name(spec: TaskSpec) -> str:
+    """The submission filename this task expects (deliverable.filename)."""
+    return str(spec.deliverable.get("filename", SUBMISSION_NAME))
+
+
+def submission_name_from_dir(workspace: Path) -> str:
+    """Resolve the submission filename from a materialized workspace.
+
+    For callers (the command adapter) that hold only the workspace, not the
+    spec: reads the task.yaml copy the harness placed there.
+    """
+    import yaml
+
+    try:
+        doc = yaml.safe_load((workspace / "task.yaml").read_text()) or {}
+        return str(doc.get("deliverable", {}).get("filename", SUBMISSION_NAME))
+    except FileNotFoundError:
+        return SUBMISSION_NAME
+
 
 def task_digest(spec: TaskSpec) -> str:
     """SHA-256 of the task file, so a run record pins the exact spec scored."""
@@ -40,6 +69,11 @@ def render_brief(spec: TaskSpec) -> str:
     context_yaml = _extract_block(spec.path.read_text(), "context:")
     deliverable = spec.deliverable.get("description", "").strip()
     fmt = spec.deliverable.get("format", "npz")
+    notes = spec.deliverable.get("scoring_notes")
+    if notes:
+        scoring_notes = "\n".join(f"- {str(n).strip()}" for n in notes)
+    else:
+        scoring_notes = _DEFAULT_ARRAY_NOTES
 
     return f"""# {spec.title}
 
@@ -55,7 +89,7 @@ Task id: `{spec.id}`  (tier {spec.tier})
 
 ## What to submit
 
-Write your design to **`{SUBMISSION_NAME}`** in this directory, format `{fmt}`.
+Write your design to **`{submission_name(spec)}`** in this directory, format `{fmt}`.
 
 {deliverable}
 
@@ -68,11 +102,7 @@ deterministic code that recomputes the physics from your submitted file.
 
 ## How scoring works
 
-- The evaluator applies the hardware constraints and any element failures listed
-  in the design context itself. Do not pre-apply failures to your weights;
-  submit the weights you would program into working hardware.
-- Metrics are computed from your file alone. Nothing you write in prose is scored.
-- You may use any method. `numpy` and the `phased_array` package are installed.
+{scoring_notes}
 
 Full machine-readable spec: `task.yaml` in this directory.
 """

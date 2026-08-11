@@ -67,3 +67,42 @@ def test_command_pins_config_isolation_and_model():
         assert flag in cmd, f"{flag} missing: a run would inherit operator config"
     assert cmd[cmd.index("--model") + 1] == "sonnet"
     assert cmd[cmd.index("--permission-mode") + 1] == "bypassPermissions"
+
+
+class TestMcpConfig:
+    def test_unset_is_byte_identical_to_default(self):
+        """No MCP config means the exact command shipped today."""
+        assert (
+            ClaudeCliAdapter().build_command()
+            == ClaudeCliAdapter(mcp_config=None, mcp_tools="").build_command()
+        )
+
+    def test_mcp_config_composes_with_strict(self, tmp_path):
+        config = tmp_path / "servers.json"
+        config.write_text('{"mcpServers": {}}')
+        cmd = ClaudeCliAdapter(
+            mcp_config=config, mcp_tools="mcp__opensatcom__link_snapshot"
+        ).build_command()
+
+        assert "--mcp-config" in cmd
+        assert cmd[cmd.index("--mcp-config") + 1] == str(config)
+        # --strict-mcp-config stays: explicit config only, nothing inherited.
+        assert "--strict-mcp-config" in cmd
+        assert cmd.index("--mcp-config") < cmd.index("--strict-mcp-config")
+        tools = cmd[cmd.index("--tools") + 1]
+        assert tools.endswith(",mcp__opensatcom__link_snapshot")
+
+    def test_config_hash_recorded(self, tmp_path, monkeypatch):
+        import hashlib
+
+        config = tmp_path / "servers.json"
+        config.write_text('{"mcpServers": {"opensatcom": {"command": "opensatcom"}}}')
+        adapter = ClaudeCliAdapter(mcp_config=config, mcp_tools="mcp__opensatcom__link_snapshot")
+
+        def fake_run(cmd, workspace, env, timeout_s):
+            return 0, '{"result": "done", "usage": {}}', "", False
+
+        monkeypatch.setattr("aedl.harness.adapters.claude_cli.run_subprocess", fake_run)
+        info = adapter.run(tmp_path, {}, 60)
+        assert info.extra["mcp_config_sha256"] == hashlib.sha256(config.read_bytes()).hexdigest()
+        assert info.extra["mcp_tools"] == "mcp__opensatcom__link_snapshot"

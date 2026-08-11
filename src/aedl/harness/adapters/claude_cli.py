@@ -46,12 +46,19 @@ class ClaudeCliAdapter:
         setting_sources: str = "project",
         max_budget_usd: float | None = 5.0,
         binary: str = "claude",
+        mcp_config: Path | str | None = None,
+        mcp_tools: str = "",
     ):
         self._model = model
         self._tools = tools
         self._setting_sources = setting_sources
         self._max_budget_usd = max_budget_usd
         self._binary = binary
+        # An explicit MCP config composes with --strict-mcp-config: the pair
+        # means "exactly these servers and nothing inherited from the
+        # operator", which is what makes an MCP-attached run reproducible.
+        self._mcp_config = Path(mcp_config) if mcp_config is not None else None
+        self._mcp_tools = mcp_tools
 
     def build_command(self) -> list[str]:
         cmd = [
@@ -63,9 +70,13 @@ class ClaudeCliAdapter:
             "--permission-mode",
             "bypassPermissions",
             "--tools",
-            self._tools,
+            self._tools + ("," + self._mcp_tools if self._mcp_tools else ""),
             "--setting-sources",
             self._setting_sources,
+        ]
+        if self._mcp_config is not None:
+            cmd += ["--mcp-config", str(self._mcp_config)]
+        cmd += [
             "--strict-mcp-config",
             "--disable-slash-commands",
             "--exclude-dynamic-system-prompt-sections",
@@ -88,6 +99,11 @@ class ClaudeCliAdapter:
         usage, extra = _parse_result_json(stdout)
         if usage.model is None:
             usage.model = self._model
+        if self._mcp_config is not None:
+            import hashlib
+
+            extra["mcp_config_sha256"] = hashlib.sha256(self._mcp_config.read_bytes()).hexdigest()
+            extra["mcp_tools"] = self._mcp_tools
         return AgentRunInfo(
             returncode=returncode,
             wall_time_s=time.perf_counter() - start,
@@ -180,6 +196,8 @@ def _factory(
     setting_sources: str = "project",
     max_budget_usd: float | None = 5.0,
     binary: str = "claude",
+    mcp_config: Path | str | None = None,
+    mcp_tools: str = "",
     **_ignored: Any,
 ) -> ClaudeCliAdapter:
     return ClaudeCliAdapter(
@@ -188,4 +206,6 @@ def _factory(
         setting_sources=setting_sources,
         max_budget_usd=max_budget_usd,
         binary=binary,
+        mcp_config=mcp_config,
+        mcp_tools=mcp_tools,
     )

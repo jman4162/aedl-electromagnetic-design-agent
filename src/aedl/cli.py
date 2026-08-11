@@ -49,6 +49,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         model=args.model,
         template=args.agent_command,
         max_budget_usd=args.max_budget_usd,
+        mcp_config=args.mcp_config,
+        mcp_tools=args.mcp_tools,
     )
 
     statuses = []
@@ -128,6 +130,17 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--timeout", type=int, default=900, help="agent wall-clock limit, seconds")
     p_run.add_argument("--attempts", type=int, default=1, help="number of independent attempts")
     p_run.add_argument("--max-budget-usd", type=float, default=5.0)
+    p_run.add_argument(
+        "--mcp-config",
+        type=Path,
+        help="MCP server config to attach (composes with --strict-mcp-config: "
+        "exactly these servers, nothing inherited)",
+    )
+    p_run.add_argument(
+        "--mcp-tools",
+        default="",
+        help="comma-separated mcp__<server>__<tool> names to allow",
+    )
     p_run.add_argument(
         "--no-instrument",
         action="store_true",

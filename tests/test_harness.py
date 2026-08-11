@@ -323,3 +323,65 @@ def test_cost_column_is_labelled_as_an_estimate():
 
     assert "est. cost USD" in runs_table([])
     assert "median est. cost USD" in summary_table([])
+
+
+class TestBriefTemplating:
+    """The scoring-notes override and filename threading must not disturb t2-001."""
+
+    def test_t2_brief_uses_default_notes_and_filename(self, tmp_path):
+        spec = find_task(TASKS, "t2-001")
+        brief = ws.render_brief(spec)
+        assert "`submission.npz`" in brief
+        # The default array notes render verbatim.
+        assert "Do not pre-apply failures to your weights" in brief
+        assert "`numpy` and the `phased_array` package are installed" in brief
+
+    def test_scoring_notes_override(self, tmp_path):
+        import dataclasses
+
+        spec = find_task(TASKS, "t2-001")
+        spec = dataclasses.replace(
+            spec,
+            deliverable={
+                **spec.deliverable,
+                "filename": "architecture.yaml",
+                "scoring_notes": ["Margins are scored worst-case.", "Nothing in prose is scored."],
+            },
+        )
+        brief = ws.render_brief(spec)
+        assert "`architecture.yaml`" in brief
+        assert "- Margins are scored worst-case." in brief
+        assert "Do not pre-apply failures to your weights" not in brief
+
+    def test_submission_name_from_dir(self, tmp_path):
+        (tmp_path / "task.yaml").write_text("id: x\ndeliverable:\n  filename: architecture.yaml\n")
+        assert ws.submission_name_from_dir(tmp_path) == "architecture.yaml"
+        assert ws.submission_name_from_dir(tmp_path / "missing") == "submission.npz"
+
+
+def test_instrument_counts_dotted_class_method(tmp_path):
+    """A "module:Class.method" tier target patches the class object."""
+    target_dir = tmp_path / "libs"
+    target_dir.mkdir()
+    (target_dir / "fakelink.py").write_text(
+        "class Engine:\n    def evaluate(self, x):\n        return 2 * x\n"
+    )
+
+    bundle = tmp_path / "bundle"
+    bundle.mkdir()
+    shim_dir = instrument.write_payload(bundle)
+    env = instrument.build_env(
+        {"PATH": "/usr/bin:/bin"},
+        shim_dir,
+        bundle / "calls.jsonl",
+        tiers={"reduced_order": ["fakelink:Engine.evaluate"]},
+    )
+    env["PYTHONPATH"] = f"{shim_dir}:{target_dir}"
+
+    code = "from fakelink import Engine\nassert Engine().evaluate(3) == 6\n"
+    subprocess.run([sys.executable, "-c", code], env=env, check=True)
+
+    summary = instrument.summarize(bundle / "calls.jsonl")
+    assert summary["total_calls"] == 1
+    assert summary["calls_by_tier"] == {"reduced_order": 1}
+    assert "fakelink:Engine.evaluate" in summary["calls_by_function"]

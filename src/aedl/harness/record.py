@@ -20,6 +20,7 @@ TRACKED_PACKAGES = (
     "aedl",
     "phased-array-modeling",
     "phased-array-systems",
+    "opensatcom",
     "numpy",
     "scipy",
     "edgefem",

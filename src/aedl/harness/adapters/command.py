@@ -18,7 +18,7 @@ from aedl.harness.adapter import (
     register_adapter,
     run_subprocess,
 )
-from aedl.harness.workspace import SUBMISSION_NAME
+from aedl.harness.workspace import submission_name_from_dir
 
 
 class CommandAdapter:
@@ -37,7 +37,7 @@ class CommandAdapter:
         rendered = self._template.format(
             brief=str(workspace / "BRIEF.md"),
             task=str(workspace / "task.yaml"),
-            submission=str(workspace / SUBMISSION_NAME),
+            submission=str(workspace / submission_name_from_dir(workspace)),
         )
         return shlex.split(rendered)
 

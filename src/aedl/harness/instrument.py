@@ -30,6 +30,9 @@ TIERS: dict[str, list[str]] = {
     "reduced_order": [
         "phased_array_systems:evaluate_case",
         "phased_array_systems:evaluate_config",
+        # opensatcom's entry point is a method; the dotted form patches the
+        # class object, which every import spelling shares.
+        "opensatcom.link.engine:DefaultLinkEngine.evaluate_snapshot",
     ],
     # Tier-1 full-wave. Absent until EdgeFEM is wired in; the payload skips
     # entry points whose module will not import.
@@ -91,7 +94,24 @@ def _patch(module, attr, tier):
     Re-exported functions (phased_array.compute_full_pattern lives in
     phased_array.core) must be patched in both namespaces, otherwise a
     `from phased_array.core import ...` slips past uncounted.
+
+    A dotted attr ("ClassName.method") patches the method on the class
+    object. The class object is shared by every import spelling, so the
+    dual-namespace dance is unnecessary there, and the wrapper binds self
+    like any plain function assigned to a class.
     """
+    if "." in attr:
+        owner_name, _, meth = attr.partition(".")
+        owner = getattr(module, owner_name, None)
+        if owner is None:
+            return
+        original = owner.__dict__.get(meth)
+        if original is None or getattr(original, "_aedl_wrapped", False):
+            return
+        label = module.__name__ + ":" + attr
+        setattr(owner, meth, _make_wrapper(original, tier, label))
+        return
+
     original = getattr(module, attr, None)
     if original is None or getattr(original, "_aedl_wrapped", False):
         return
@@ -186,12 +206,17 @@ def write_payload(directory: Path) -> Path:
     return directory
 
 
-def build_env(base_env: dict[str, str], shim_dir: Path, call_log: Path) -> dict[str, str]:
+def build_env(
+    base_env: dict[str, str],
+    shim_dir: Path,
+    call_log: Path,
+    tiers: dict[str, list[str]] | None = None,
+) -> dict[str, str]:
     env = dict(base_env)
     existing = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = f"{shim_dir}{':' + existing if existing else ''}"
     env["AEDL_CALL_LOG"] = str(call_log)
-    env["AEDL_CALL_TIERS"] = json.dumps(TIERS)
+    env["AEDL_CALL_TIERS"] = json.dumps(TIERS if tiers is None else tiers)
     return env
 
 

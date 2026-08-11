@@ -111,7 +111,8 @@ _PROBE = (
     "                  'python': sys.version.split()[0],\n"
     "                  'numpy': v('numpy'),\n"
     "                  'phased_array': v('phased_array'),\n"
-    "                  'phased_array_systems': v('phased_array_systems')}))"
+    "                  'phased_array_systems': v('phased_array_systems'),\n"
+    "                  'opensatcom': v('opensatcom')}))"
 )
 
 
@@ -209,7 +210,7 @@ def run_task(
         if info.extra:
             record.usage["extra"] = info.extra
 
-        submission = work / ws.SUBMISSION_NAME
+        submission = work / ws.submission_name(spec)
         if info.timed_out:
             # Whatever is on disk was written by an agent that ran out of time,
             # so it may be half-written or left over from an earlier step.
@@ -218,7 +219,7 @@ def run_task(
             record.error = f"agent exceeded the {timeout_s}s limit"
         elif not submission.exists():
             record.status = "no_submission"
-            record.error = f"agent did not create {ws.SUBMISSION_NAME}"
+            record.error = f"agent did not create {ws.submission_name(spec)}"
         else:
             try:
                 result = get_evaluator(spec.evaluator)(spec, submission)
