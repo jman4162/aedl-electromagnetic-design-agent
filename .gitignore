@@ -11,6 +11,11 @@ docs/essay-*.md
 runs/**/.DS_Store
 runs/**/__pycache__/
 
+# Concurrency sentinels written by hidden_references during a run; a stale
+# one (e.g. from a killed run) committed to the repo makes CI think another
+# run owns the directory and skip hiding entirely.
+tasks/*/.aedl-hidden-mode
+
 # Derived from the bundles by `aedl report`. Left out because it reports each
 # run's score as recorded at run time, which for the 2026-08-10 attempts
 # predates the sidelobe-metric fix; see runs/README.md.
