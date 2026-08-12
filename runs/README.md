@@ -8,6 +8,20 @@ checked by someone else. Three groups:
   described below.
 - **t3-001, 2026-08-12** (two bundles): harness-instrumentation smoke runs after
   the Slice-3 observability work, described below.
+- **t3-002, 2026-08-12** (one bundle): first agent attempt at the new X-band
+  search radar task, described below.
+
+## t3-002: first attempt (2026-08-12)
+
+`20260812T173726Z…73aa112d` — Claude Code (Sonnet 5), MCP-attached, passed all
+nine requirements on the first attempt ($1.03, 28 turns, 468 s). The design is
+not the reference's: the agent chose a 64x32 *rectangular* aperture — a
+narrower azimuth beam shrinks the clutter cell directly — and beat the
+reference on unit cost ($486k vs $513k). The full instrumentation shows the
+method: one `mcp__apab__system_evaluate` call plus its own pattern-sweep
+scripts (234 aperture-model calls across 4 processes in `calls.jsonl`),
+`integrity: clean`, APAB server spans in `server-trace.jsonl`. One attempt is
+an existence proof that the task is solvable by an agent, not a pass rate.
 
 ## t3-001: instrumentation smoke runs (2026-08-12)
 
