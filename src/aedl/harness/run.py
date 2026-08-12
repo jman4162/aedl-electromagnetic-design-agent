@@ -208,6 +208,8 @@ def run_task(
         record.model = info.usage.model
         record.usage = {k: v for k, v in asdict(info.usage).items() if v is not None}
         if info.extra:
+            record.transcript = info.extra.pop("transcript", {})
+            record.integrity = str(info.extra.pop("integrity", "unknown"))
             record.usage["extra"] = info.extra
 
         submission = work / ws.submission_name(spec)
@@ -250,6 +252,7 @@ def _collect_logs(work: Path, bundle: Path) -> None:
     for src, dst in (
         (".aedl-agent.stdout", "agent.stdout.log"),
         (".aedl-agent.stderr", "agent.stderr.log"),
+        (".aedl-agent.transcript.jsonl", "transcript.jsonl"),
     ):
         path = work / src
         if path.exists():

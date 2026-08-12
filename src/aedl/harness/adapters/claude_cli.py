@@ -9,6 +9,7 @@ records exactly which were used.
 from __future__ import annotations
 
 import json
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -66,7 +67,8 @@ class ClaudeCliAdapter:
             "-p",
             PROMPT,
             "--output-format",
-            "json",
+            "stream-json",
+            "--verbose",
             "--permission-mode",
             "bypassPermissions",
             "--tools",
@@ -96,9 +98,17 @@ class ClaudeCliAdapter:
         (workspace / ".aedl-agent.stdout").write_text(stdout)
         (workspace / ".aedl-agent.stderr").write_text(stderr)
 
-        usage, extra = _parse_result_json(stdout)
+        events = parse_transcript(stdout)
+        if events:
+            with (workspace / ".aedl-agent.transcript.jsonl").open("w") as fh:
+                for event in events:
+                    fh.write(json.dumps(event) + "\n")
+
+        usage, extra = _parse_stream_json(stdout, events)
         if usage.model is None:
             usage.model = self._model
+        extra["transcript"] = summarize_transcript(events)
+        extra["integrity"] = transcript_integrity(events)
         if self._mcp_config is not None:
             import hashlib
 
@@ -114,17 +124,109 @@ class ClaudeCliAdapter:
         )
 
 
-def _parse_result_json(stdout: str) -> tuple[AgentUsage, dict[str, Any]]:
-    """Pull usage out of `--output-format json`. Never raises on odd output."""
+def parse_transcript(stdout: str) -> list[dict[str, Any]]:
+    """NDJSON lines of a `--output-format stream-json` run, best effort.
+
+    Non-JSON lines are dropped rather than fatal, so a partial stream from
+    a killed agent still yields whatever events made it out.
+    """
+    events: list[dict[str, Any]] = []
+    for line in stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            parsed = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            events.append(parsed)
+    return events
+
+
+def _parse_stream_json(
+    stdout: str, events: list[dict[str, Any]]
+) -> tuple[AgentUsage, dict[str, Any]]:
+    """Usage from the final `type: "result"` event of a stream-json run.
+
+    Falls back to parsing the whole stdout as one JSON document, which
+    covers `--output-format json` output from an older CLI. Never raises.
+    """
+    result = next(
+        (e for e in reversed(events) if e.get("type") == "result"),
+        None,
+    )
+    if result is not None:
+        return _parse_result_payload(result)
     try:
         payload = json.loads(stdout)
     except (json.JSONDecodeError, TypeError):
-        return AgentUsage(), {"parse_error": "stdout was not JSON"}
+        return AgentUsage(), {"parse_error": "no result event and stdout was not JSON"}
     if isinstance(payload, list):  # defensive: some versions emit a list
         payload = next((p for p in reversed(payload) if isinstance(p, dict)), {})
     if not isinstance(payload, dict):
         return AgentUsage(), {"parse_error": "unexpected JSON shape"}
+    return _parse_result_payload(payload)
 
+
+#: A tool input that references a task's reference/ directory marks the run
+#: suspect: re-deriving a metric is allowed, reading the worked solution is
+#: not. Matches "reference" as a path segment, not the word in prose.
+_REFERENCE_PATH = re.compile(r"reference/|/reference\b")
+
+#: Tools whose inputs can reach the filesystem.
+_FS_TOOLS = frozenset({"Read", "Bash", "Glob", "Grep", "Write", "Edit"})
+
+
+def summarize_transcript(events: list[dict[str, Any]]) -> dict[str, Any]:
+    """Tool-call counts by tool name from assistant tool_use blocks."""
+    by_name: dict[str, int] = {}
+    for block in _tool_use_blocks(events):
+        name = str(block.get("name", "?"))
+        by_name[name] = by_name.get(name, 0) + 1
+    return {
+        "events": len(events),
+        "tool_calls_total": sum(by_name.values()),
+        "tool_calls_by_name": dict(sorted(by_name.items())),
+    }
+
+
+def transcript_integrity(events: list[dict[str, Any]]) -> str:
+    """ "clean" | "suspect" | "unknown" from the tool-call transcript.
+
+    "suspect" when any filesystem-capable tool call references a
+    reference/ path (the answer key lives in tasks/<id>/reference/).
+    "unknown" when there is no transcript to judge. A flag for review,
+    not a verdict: the pattern can catch prose mentioning the path.
+    """
+    if not events:
+        return "unknown"
+    for block in _tool_use_blocks(events):
+        if block.get("name") not in _FS_TOOLS:
+            continue
+        raw = json.dumps(block.get("input", {}), default=str)
+        if _REFERENCE_PATH.search(raw):
+            return "suspect"
+    return "clean"
+
+
+def _tool_use_blocks(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    blocks: list[dict[str, Any]] = []
+    for event in events:
+        if event.get("type") != "assistant":
+            continue
+        message = event.get("message") or {}
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "tool_use":
+                blocks.append(item)
+    return blocks
+
+
+def _parse_result_payload(payload: dict[str, Any]) -> tuple[AgentUsage, dict[str, Any]]:
+    """Map a result payload (final stream event or whole-JSON doc) to usage."""
     raw_usage = payload.get("usage") or {}
     usage = AgentUsage(
         input_tokens=_maybe_int(raw_usage.get("input_tokens")),

@@ -1,11 +1,14 @@
-"""Parsing of the Claude CLI result JSON."""
+"""Parsing of the Claude CLI stream-json output and transcript."""
 
 import json
 
 from aedl.harness.adapters.claude_cli import (
     ClaudeCliAdapter,
-    _parse_result_json,
+    _parse_stream_json,
+    parse_transcript,
     primary_model,
+    summarize_transcript,
+    transcript_integrity,
 )
 
 # Shape observed from `claude -p --output-format json` (2.1.226): no top-level
@@ -37,8 +40,46 @@ def test_primary_model_handles_empty():
     assert primary_model({}) is None
 
 
-def test_parse_extracts_usage_including_cache_tokens():
-    usage, extra = _parse_result_json(json.dumps(SAMPLE))
+def _stream(events):
+    return "\n".join(json.dumps(e) for e in events)
+
+
+RESULT_EVENT = {"type": "result", **SAMPLE}
+
+TOOL_EVENTS = [
+    {"type": "system", "subtype": "init"},
+    {
+        "type": "assistant",
+        "message": {
+            "content": [
+                {"type": "tool_use", "name": "Read", "input": {"file_path": "BRIEF.md"}},
+                {"type": "text", "text": "reading the brief"},
+            ]
+        },
+    },
+    {
+        "type": "assistant",
+        "message": {
+            "content": [
+                {"type": "tool_use", "name": "Bash", "input": {"command": "python solve.py"}},
+            ]
+        },
+    },
+    {
+        "type": "assistant",
+        "message": {
+            "content": [
+                {"type": "tool_use", "name": "Read", "input": {"file_path": "task.yaml"}},
+            ]
+        },
+    },
+]
+
+
+def test_parse_extracts_usage_from_result_event():
+    stdout = _stream([*TOOL_EVENTS, RESULT_EVENT])
+    events = parse_transcript(stdout)
+    usage, extra = _parse_stream_json(stdout, events)
     assert usage.model == "claude-sonnet-5"
     assert usage.output_tokens == 45925
     assert usage.cache_read_tokens == 2220851
@@ -48,10 +89,98 @@ def test_parse_extracts_usage_including_cache_tokens():
     assert extra["session_id"] == "abc123"
 
 
+def test_parse_falls_back_to_whole_json_document():
+    """Output from an older CLI running --output-format json still parses."""
+    stdout = json.dumps(SAMPLE)
+    events = parse_transcript(stdout)  # one dict, but no result event
+    usage, _extra = _parse_stream_json(stdout, [])
+    assert usage.model == "claude-sonnet-5"
+    assert usage.cost_usd == 1.8329703
+    assert events == [SAMPLE]
+
+
 def test_parse_survives_non_json_output():
-    usage, extra = _parse_result_json("claude: command failed\n")
+    usage, extra = _parse_stream_json("claude: command failed\n", [])
     assert usage.model is None and usage.cost_usd is None
     assert "parse_error" in extra
+
+
+def test_parse_transcript_drops_garbage_lines():
+    stdout = "not json\n" + json.dumps({"type": "system"}) + "\n[1, 2]\n"
+    events = parse_transcript(stdout)
+    assert events == [{"type": "system"}]
+
+
+class TestTranscriptSummary:
+    def test_counts_by_tool(self):
+        summary = summarize_transcript(TOOL_EVENTS)
+        assert summary["tool_calls_total"] == 3
+        assert summary["tool_calls_by_name"] == {"Bash": 1, "Read": 2}
+        assert summary["events"] == len(TOOL_EVENTS)
+
+    def test_empty(self):
+        summary = summarize_transcript([])
+        assert summary == {"events": 0, "tool_calls_total": 0, "tool_calls_by_name": {}}
+
+
+class TestIntegrity:
+    def test_clean_run(self):
+        assert transcript_integrity(TOOL_EVENTS) == "clean"
+
+    def test_no_transcript_is_unknown(self):
+        assert transcript_integrity([]) == "unknown"
+
+    def test_read_of_reference_is_suspect(self):
+        events = [
+            *TOOL_EVENTS,
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "Read",
+                            "input": {"file_path": "../../tasks/t2-001/reference/solve.py"},
+                        }
+                    ]
+                },
+            },
+        ]
+        assert transcript_integrity(events) == "suspect"
+
+    def test_bash_find_of_reference_is_suspect(self):
+        events = [
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "Bash",
+                            "input": {"command": "cat /repo/tasks/t2-001/reference/solve.py"},
+                        }
+                    ]
+                },
+            },
+        ]
+        assert transcript_integrity(events) == "suspect"
+
+    def test_prose_mention_does_not_flag_non_fs_tools(self):
+        events = [
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "WebSearch",
+                            "input": {"query": "antenna reference/ design"},
+                        }
+                    ]
+                },
+            },
+        ]
+        assert transcript_integrity(events) == "clean"
 
 
 def test_command_pins_config_isolation_and_model():
@@ -100,7 +229,7 @@ class TestMcpConfig:
         adapter = ClaudeCliAdapter(mcp_config=config, mcp_tools="mcp__opensatcom__link_snapshot")
 
         def fake_run(cmd, workspace, env, timeout_s):
-            return 0, '{"result": "done", "usage": {}}', "", False
+            return 0, json.dumps({"type": "result", "usage": {}}), "", False
 
         monkeypatch.setattr("aedl.harness.adapters.claude_cli.run_subprocess", fake_run)
         info = adapter.run(tmp_path, {}, 60)

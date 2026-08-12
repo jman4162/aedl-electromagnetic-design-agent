@@ -67,6 +67,13 @@ class RunRecord:
     #: How the agent authenticated. Subscription runs are not billed per token,
     #: so their reported cost is an API-equivalent estimate, not money spent.
     auth: dict[str, Any] = field(default_factory=dict)
+    #: Tool-call counts from the agent's stream-json transcript
+    #: (transcript.jsonl in the bundle holds the raw events).
+    transcript: dict[str, Any] = field(default_factory=dict)
+    #: clean | suspect | unknown — "suspect" when the transcript shows a
+    #: filesystem tool referencing a tasks/*/reference/ path. A flag for
+    #: review, not a verdict.
+    integrity: str = "unknown"
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
