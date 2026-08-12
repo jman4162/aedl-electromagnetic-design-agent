@@ -1,0 +1,18 @@
+array:
+  nx: 16
+  ny: 16
+  dx_lambda: 0.49
+  dy_lambda: 0.49
+  taper_type: taylor
+  taper_sll_db: -32.0
+  phase_bits: 6
+
+rf:
+  tx_power_w_per_elem: 0.30
+  pa_class: B
+
+digital:
+  digitization_level: analog
+  adc_enob: 8
+  subarray_nx: 8
+  subarray_ny: 8

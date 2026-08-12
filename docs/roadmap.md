@@ -369,10 +369,9 @@ Ordered by how much they affect whether a published number is trustworthy.
    thin Docker image with the libraries and no repo checkout, plus
    `--isolation container`, would make results defensible without the chmod
    deterrent.
-2. **Transcript capture.** `--output-format json` returns only the final result
-   object, so there is no record of which files the agent read. Switching the
-   adapter to `stream-json` would give a full tool-call log, enabling an
-   automatic `integrity: suspect` flag when a run touches `reference/`.
+2. **Transcript capture.** Done (2026-08-11): the adapter runs `stream-json`,
+   `transcript.jsonl` lands in every bundle, and the manifest carries an
+   `integrity` field exactly as described below.
 3. **Per-attempt seeds and variance.** Three attempts is enough to notice a
    degenerate task, not enough for a pass rate with error bars. Decide on a
    standard attempt count before publishing.
@@ -438,7 +437,7 @@ Unlocked by this slice: finite-array full-wave validation (EdgeFEM vs
 measurement), and fabricating an antenna-cad board as the first real
 fixture — the loop the ecosystem post named as its most honest gap.
 
-### Slice 3 — observability closure
+### Slice 3 — observability closure (done 2026-08-11)
 
 The honest remainder of the "agent operating system" question (answered no
 on the t3-001 gate: library-only 0/3 vs MCP-attached 2/3; no coordination

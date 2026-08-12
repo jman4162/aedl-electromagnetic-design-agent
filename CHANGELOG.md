@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Slice 3 (observability closure), 2026-08-11: the claude adapter runs
+  `--output-format stream-json` and lands the raw tool-call transcript in
+  the bundle as `transcript.jsonl`; the manifest gains `transcript`
+  (tool-call counts) and `integrity` (`clean`/`suspect`/`unknown` — suspect
+  when a filesystem tool call references a `tasks/*/reference/` path,
+  mechanizing the caveat runs/README.md carried in prose). The adapter also
+  rewrites the MCP config to inject the call-count shim env into each
+  server process — the reason every earlier bundle recorded zero
+  instrumented calls even in the MCP arm — recording both the original and
+  effective config hashes, and pulls APAB server-side spans into the
+  bundle when APAB is among the servers.
+
 - `t3-001`: the first Tier-3 task. A 28 GHz LEO SATCOM terminal architecture
   must close the link worst-case over a held-out envelope (scan, rain, sky
   noise, seeded element failures) under prime-power and unit-cost ceilings

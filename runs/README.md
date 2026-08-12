@@ -1,11 +1,32 @@
 # Run bundles
 
 Committed agent attempts, kept so the numbers quoted in the top-level README can be
-checked by someone else. Two groups:
+checked by someone else. Three groups:
 
 - **t2-001, 2026-08-10** (three bundles): the original calibration attempts.
 - **t3-001, 2026-08-11** (six bundles): the library-vs-MCP composition measurement,
   described below.
+- **t3-001, 2026-08-12** (two bundles): harness-instrumentation smoke runs after
+  the Slice-3 observability work, described below.
+
+## t3-001: instrumentation smoke runs (2026-08-12)
+
+Both open integrity items from the composition measurement are closed, and these
+two bundles are the evidence. `20260812T034040Z…371bb314` (transcript capture):
+the stream-json adapter landed `transcript.jsonl` (714 events, 69 tool calls, 14
+of them MCP) and the manifest's `integrity: clean` — but `calls.jsonl` was still
+empty because the shim env paths were relative and resolved nowhere in processes
+with a different cwd. `20260812T070655Z…8a38b7ac` (after the absolute-path fix):
+`calls.jsonl` records 221 calls across 10 processes, including
+`DefaultLinkEngine.evaluate_snapshot` from inside the opensatcom MCP server —
+the call class that was invisible in every earlier bundle — and
+`server-trace.jsonl` carries the APAB server's own tool spans. Both runs passed
+all eight requirements.
+
+That second bundle also shows something newly measurable: the agent used the MCP
+tools for link physics (1 opensatcom + 8 APAB calls) *and* wrote its own pattern
+scripts (107 aperture-model calls from Bash-spawned Pythons). Whether agents use
+the provided physics tooling stopped being an inference from workspace shape.
 
 ## t3-001: the composition measurement (2026-08-11)
 
@@ -34,7 +55,10 @@ tool-call transcript, so MCP tool usage is inferred from the result text and
 workspace shape, not logged per call. And `calls.jsonl` recorded zero
 instrumented physics calls in every bundle, including the MCP arm, where the
 server processes were expected to inherit the shim; that instrumentation gap
-is still open. Costs are API-equivalent estimates (subscription-covered).
+is still open **for these six bundles**. Costs are API-equivalent estimates
+(subscription-covered). Both gaps were closed on 2026-08-12 (see the
+instrumentation smoke runs above); runs from that date onward carry a
+transcript, an integrity flag, and per-process call logs.
 
 ## t2-001 attempts (2026-08-10)
 
