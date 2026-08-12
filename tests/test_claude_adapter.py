@@ -1,6 +1,7 @@
 """Parsing of the Claude CLI stream-json output and transcript."""
 
 import json
+import typing
 
 from aedl.harness.adapters.claude_cli import (
     ClaudeCliAdapter,
@@ -235,3 +236,102 @@ class TestMcpConfig:
         info = adapter.run(tmp_path, {}, 60)
         assert info.extra["mcp_config_sha256"] == hashlib.sha256(config.read_bytes()).hexdigest()
         assert info.extra["mcp_tools"] == "mcp__opensatcom__link_snapshot"
+
+
+class TestServerEnvInjection:
+    ENV: typing.ClassVar[dict[str, str]] = {
+        "AEDL_CALL_LOG": "/bundles/run1/calls.jsonl",
+        "AEDL_CALL_TIERS": '{"reduced_order": []}',
+        "PYTHONPATH": "/bundles/run1/.shim",
+        "HOME": "/Users/x",
+    }
+
+    def _config(self):
+        return {
+            "mcpServers": {
+                "opensatcom": {"command": "opensatcom", "args": ["mcp"]},
+                "apab": {"command": "apab", "env": {"KEEP": "me"}},
+            }
+        }
+
+    def test_injects_into_every_server(self):
+        from aedl.harness.adapters.claude_cli import inject_server_env
+
+        out = inject_server_env(self._config(), dict(self.ENV))
+        for server in out["mcpServers"].values():
+            env = server["env"]
+            assert env["AEDL_CALL_LOG"] == "/bundles/run1/calls.jsonl"
+            assert env["PYTHONPATH"] == "/bundles/run1/.shim"
+            assert env["APAB_OBSERVABILITY"] == "1"
+            assert env["APAB_TRACE_JSONL"] == "/bundles/run1/server-trace.jsonl"
+        # HOME is not an instrumentation var and must not leak in
+        assert "HOME" not in out["mcpServers"]["opensatcom"]["env"]
+
+    def test_existing_server_env_wins(self):
+        from aedl.harness.adapters.claude_cli import inject_server_env
+
+        config = self._config()
+        config["mcpServers"]["apab"]["env"]["AEDL_CALL_LOG"] = "/custom.jsonl"
+        out = inject_server_env(config, dict(self.ENV))
+        assert out["mcpServers"]["apab"]["env"]["AEDL_CALL_LOG"] == "/custom.jsonl"
+        assert out["mcpServers"]["apab"]["env"]["KEEP"] == "me"
+
+    def test_no_instrumentation_env_leaves_config_alone(self):
+        from aedl.harness.adapters.claude_cli import inject_server_env
+
+        config = self._config()
+        out = inject_server_env(config, {"HOME": "/Users/x"})
+        assert "env" not in out["mcpServers"]["opensatcom"]
+
+    def test_run_writes_effective_config_and_dual_shas(self, tmp_path, monkeypatch):
+        import hashlib
+
+        config = tmp_path / "servers.json"
+        config.write_text(json.dumps(self._config()))
+        adapter = ClaudeCliAdapter(mcp_config=config, mcp_tools="mcp__opensatcom__link_snapshot")
+
+        seen_cmd = {}
+
+        def fake_run(cmd, workspace, env, timeout_s):
+            seen_cmd["cmd"] = cmd
+            return 0, json.dumps({"type": "result", "usage": {}}), "", False
+
+        monkeypatch.setattr("aedl.harness.adapters.claude_cli.run_subprocess", fake_run)
+        workspace = tmp_path / "ws"
+        workspace.mkdir()
+        info = adapter.run(workspace, dict(self.ENV), 60)
+
+        effective = workspace / ".aedl-mcp-config.json"
+        assert effective.exists()
+        injected = json.loads(effective.read_text())
+        assert injected["mcpServers"]["opensatcom"]["env"]["AEDL_CALL_LOG"]
+        # The command points at the effective copy, not the original
+        cmd = seen_cmd["cmd"]
+        assert cmd[cmd.index("--mcp-config") + 1] == str(effective)
+        # Both hashes recorded; they differ because the content differs
+        assert info.extra["mcp_config_sha256"] == hashlib.sha256(config.read_bytes()).hexdigest()
+        assert info.extra["mcp_config_effective_sha256"] == (
+            hashlib.sha256(effective.read_bytes()).hexdigest()
+        )
+        assert info.extra["mcp_config_sha256"] != info.extra["mcp_config_effective_sha256"]
+
+    def test_run_without_shim_env_uses_original_path(self, tmp_path, monkeypatch):
+        config = tmp_path / "servers.json"
+        config.write_text(json.dumps(self._config()))
+        adapter = ClaudeCliAdapter(mcp_config=config)
+
+        seen_cmd = {}
+
+        def fake_run(cmd, workspace, env, timeout_s):
+            seen_cmd["cmd"] = cmd
+            return 0, json.dumps({"type": "result", "usage": {}}), "", False
+
+        monkeypatch.setattr("aedl.harness.adapters.claude_cli.run_subprocess", fake_run)
+        workspace = tmp_path / "ws"
+        workspace.mkdir()
+        info = adapter.run(workspace, {"HOME": "/Users/x"}, 60)
+
+        cmd = seen_cmd["cmd"]
+        assert cmd[cmd.index("--mcp-config") + 1] == str(config)
+        assert not (workspace / ".aedl-mcp-config.json").exists()
+        assert "mcp_config_effective_sha256" not in info.extra

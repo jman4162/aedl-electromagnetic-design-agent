@@ -61,7 +61,34 @@ class ClaudeCliAdapter:
         self._mcp_config = Path(mcp_config) if mcp_config is not None else None
         self._mcp_tools = mcp_tools
 
-    def build_command(self) -> list[str]:
+    def _write_effective_mcp_config(self, workspace: Path, env: dict[str, str]) -> Path | None:
+        """Write the env-injected MCP config into the workspace.
+
+        Returns None (use the original path) when there is no MCP config
+        or nothing to inject. Both the original and effective sha256 are
+        recorded, so the provenance question "what did the agent actually
+        get" stays answerable.
+        """
+        if self._mcp_config is None or "AEDL_CALL_LOG" not in env:
+            return None
+        try:
+            config = json.loads(self._mcp_config.read_text())
+        except (OSError, json.JSONDecodeError):
+            return None
+        if not isinstance(config, dict):
+            return None
+        injected = inject_server_env(config, env)
+        effective = workspace / ".aedl-mcp-config.json"
+        effective.write_text(json.dumps(injected, indent=2) + "\n")
+        return effective
+
+    def build_command(self, mcp_config: Path | None = None) -> list[str]:
+        """Assemble the CLI invocation.
+
+        *mcp_config* overrides the configured path — run() passes the
+        effective (env-injected) copy it wrote into the workspace.
+        """
+        effective_mcp = mcp_config if mcp_config is not None else self._mcp_config
         cmd = [
             self._binary,
             "-p",
@@ -76,8 +103,8 @@ class ClaudeCliAdapter:
             "--setting-sources",
             self._setting_sources,
         ]
-        if self._mcp_config is not None:
-            cmd += ["--mcp-config", str(self._mcp_config)]
+        if effective_mcp is not None:
+            cmd += ["--mcp-config", str(effective_mcp)]
         cmd += [
             "--strict-mcp-config",
             "--disable-slash-commands",
@@ -91,7 +118,8 @@ class ClaudeCliAdapter:
         return cmd
 
     def run(self, workspace: Path, env: dict[str, str], timeout_s: int) -> AgentRunInfo:
-        cmd = self.build_command()
+        effective_mcp = self._write_effective_mcp_config(workspace, env)
+        cmd = self.build_command(mcp_config=effective_mcp)
         start = time.perf_counter()
         returncode, stdout, stderr, timed_out = run_subprocess(cmd, workspace, env, timeout_s)
 
@@ -114,6 +142,10 @@ class ClaudeCliAdapter:
 
             extra["mcp_config_sha256"] = hashlib.sha256(self._mcp_config.read_bytes()).hexdigest()
             extra["mcp_tools"] = self._mcp_tools
+            if effective_mcp is not None:
+                extra["mcp_config_effective_sha256"] = hashlib.sha256(
+                    effective_mcp.read_bytes()
+                ).hexdigest()
         return AgentRunInfo(
             returncode=returncode,
             wall_time_s=time.perf_counter() - start,
@@ -122,6 +154,40 @@ class ClaudeCliAdapter:
             timed_out=timed_out,
             extra=extra,
         )
+
+
+#: Instrumentation env vars forwarded into each MCP server's env block, plus
+#: server-side APAB observability so its spans land in the bundle.
+_SERVER_ENV_KEYS = ("AEDL_CALL_LOG", "AEDL_CALL_TIERS", "PYTHONPATH")
+
+
+def inject_server_env(config: dict[str, Any], env: dict[str, str]) -> dict[str, Any]:
+    """Merge instrumentation env vars into every server's ``env`` block.
+
+    The Claude CLI spawns MCP servers with its own curated environment,
+    not a copy of the CLI process env, so the call-count shim variables
+    never reach the server processes unless the config says so per
+    server. This is why every t3-001 bundle recorded zero instrumented
+    calls even in the MCP arm. Existing per-server env entries win.
+    """
+    servers = config.get("mcpServers")
+    if not isinstance(servers, dict):
+        return config
+    inject = {k: env[k] for k in _SERVER_ENV_KEYS if k in env}
+    if "AEDL_CALL_LOG" in env:
+        # Pull APAB server-side spans (if the server is APAB) into the
+        # bundle next to the call log.
+        trace_path = str(Path(env["AEDL_CALL_LOG"]).parent / "server-trace.jsonl")
+        inject.setdefault("APAB_OBSERVABILITY", "1")
+        inject.setdefault("APAB_TRACE_JSONL", trace_path)
+    if not inject:
+        return config
+    for server in servers.values():
+        if isinstance(server, dict):
+            merged = dict(inject)
+            merged.update(server.get("env") or {})
+            server["env"] = merged
+    return config
 
 
 def parse_transcript(stdout: str) -> list[dict[str, Any]]:
