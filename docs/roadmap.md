@@ -337,10 +337,15 @@ floor before building one: 0.9.x reports a different number for the same design.
   rain, under a prime-power ceiling and a unit-cost ceiling. Tests whether the agent
   finds the aperture-size / power-per-element / taper trade instead of brute-forcing
   element count.
-- **t3-002 — X-band search radar.** Meet detection probability against a Swerling-1
-  target with clutter and CFAR loss, within a frame-time constraint and an
-  availability floor at end of mission. Reliability and search timing pull against
-  aperture size in a way that pure link-budget reasoning misses.
+- **t3-002 — X-band search radar.** Built (2026-08-12). Per-scan Pd floor against
+  Swerling-1 surface craft over sea clutter, frame-time budget, and a steady-state
+  availability floor with thermal feed-forward. Calibration reshaped the scenario:
+  without MTI/Doppler in the model, clutter-limited detection of low-flying targets
+  at range is infeasible for every design, so the task hunts small surface craft
+  inside the horizon — and that infeasibility note is exactly the evidence the
+  signal-level fidelity gate (radar slice, below) feeds on. The Monte Carlo
+  CFAR cross-check also measured PAS's CFAR-loss approximation as one-sidedly
+  conservative at multi-pulse (up to ~0.09 Pd in-band).
 
 ## What I recommend against, and why
 

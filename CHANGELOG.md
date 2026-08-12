@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `t3-002`: the second Tier-3 task — an X-band maritime search radar
+  architecture must reach a per-scan detection floor against Swerling-1
+  surface craft over sea clutter, worst-case over a held-out envelope
+  (range, RCS, scan, sea state, seeded element failures), sweep its search
+  volume inside a frame-time budget, and hold a steady-state availability
+  floor with junction temperature fed forward from its own dissipated
+  power. Aperture, waveform (PRF, pulses per dwell), per-element power,
+  taper, and PA class pull against each other; duty cycle is computed from
+  the pinned pulse width and submitting it is an error. The `radar_search`
+  evaluator recomputes pattern claims by full integration
+  (phased-array-modeling) and the binding-point detection probability by
+  Monte Carlo simulation of a Swerling-1 target through an actual CA-CFAR
+  (`evaluators/radar_mc.py`, exact closed-form threshold statistics,
+  no shared code with the analytic chain). Calibration
+  (`scripts/calibrate_t3_002.py`) froze every threshold from measurement
+  and surfaced two model findings along the way: phased-array-systems'
+  CFAR loss approximation is one-sidedly conservative for multi-pulse
+  integration (up to ~0.09 Pd in the operating band — the cross-check
+  tolerance covers it), and clutter-limited detection of low-flying
+  targets at long range is infeasible for every design in the space
+  because the model has no MTI/Doppler processing, which reshaped the
+  scenario to surface targets inside the horizon. The task pins
+  `phased-array-systems>=0.11` (the beamwidth edge-case fix landed there).
+
 - Slice 3 (observability closure), 2026-08-11: the claude adapter runs
   `--output-format stream-json` and lands the raw tool-call transcript in
   the bundle as `transcript.jsonl`; the manifest gains `transcript`

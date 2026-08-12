@@ -23,7 +23,7 @@ scientific-agent frameworks are a non-goal.
 ## Status
 
 Pre-release. What works today: the task format, evaluators for Tiers 2 and 3,
-two calibrated tasks (`t2-001`, `t3-001`), and the agent harness (`aedl run` /
+three calibrated tasks (`t2-001`, `t3-001`, `t3-002`), and the agent harness (`aedl run` /
 `aedl report`) with cost accounting and optional MCP server attachment. What
 does not exist yet: Tier 1 and the remaining four Tier-2 tasks.
 `docs/roadmap.md` tracks the rest and records why each design decision was
@@ -35,7 +35,7 @@ Tiers:
 |---|---|---|---|
 | 1, element | unit cells, patch antennas | full-wave, [EdgeFEM](https://github.com/jman4162/EdgeFEM) | planned |
 | 2, aperture | array synthesis under hardware constraints | [phased-array-modeling](https://github.com/jman4162/Phased-Array-Antenna-Model) | `t2-001` |
-| 3, system | requirement-driven architecture trades | [phased-array-systems](https://github.com/jman4162/phased-array-systems), cross-checked by [phased-array-modeling](https://github.com/jman4162/Phased-Array-Antenna-Model) and [opensatcom](https://github.com/jman4162/opensatcom) | `t3-001` |
+| 3, system | requirement-driven architecture trades | [phased-array-systems](https://github.com/jman4162/phased-array-systems), cross-checked by [phased-array-modeling](https://github.com/jman4162/Phased-Array-Antenna-Model), [opensatcom](https://github.com/jman4162/opensatcom), and a Monte Carlo CFAR simulator | `t3-001`, `t3-002` |
 
 `t3-001` is the cross-layer task: design a 28 GHz LEO terminal architecture
 (aperture, taper, quantization, PA class, digitization) that closes the link
