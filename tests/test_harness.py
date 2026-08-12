@@ -385,3 +385,17 @@ def test_instrument_counts_dotted_class_method(tmp_path):
     assert summary["total_calls"] == 1
     assert summary["calls_by_tier"] == {"reduced_order": 1}
     assert "fakelink:Engine.evaluate" in summary["calls_by_function"]
+
+
+class TestShimEnvPaths:
+    def test_env_paths_are_absolute(self, tmp_path, monkeypatch):
+        """Relative shim paths silently resolve nowhere in the agent process
+        (cwd = workspace) and in MCP server subprocesses (cwd = launcher's
+        choice) — the reason every early bundle recorded zero calls."""
+        from aedl.harness import instrument
+
+        monkeypatch.chdir(tmp_path)
+        shim = instrument.write_payload(Path("bundle/.shim"))
+        env = instrument.build_env({}, shim, Path("bundle/calls.jsonl"))
+        assert Path(env["AEDL_CALL_LOG"]).is_absolute()
+        assert Path(env["PYTHONPATH"].split(":")[0]).is_absolute()

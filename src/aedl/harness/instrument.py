@@ -214,8 +214,12 @@ def build_env(
 ) -> dict[str, str]:
     env = dict(base_env)
     existing = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = f"{shim_dir}{':' + existing if existing else ''}"
-    env["AEDL_CALL_LOG"] = str(call_log)
+    # Absolute paths: the agent process runs with the workspace as cwd, and
+    # MCP server subprocesses run with whatever cwd their launcher picks, so
+    # a relative shim dir or call log silently resolves nowhere.
+    shim_abs = Path(shim_dir).resolve()
+    env["PYTHONPATH"] = f"{shim_abs}{':' + existing if existing else ''}"
+    env["AEDL_CALL_LOG"] = str(Path(call_log).resolve())
     env["AEDL_CALL_TIERS"] = json.dumps(TIERS if tiers is None else tiers)
     return env
 
