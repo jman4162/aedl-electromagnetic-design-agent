@@ -303,7 +303,7 @@ def _parse_result_payload(payload: dict[str, Any]) -> tuple[AgentUsage, dict[str
         num_turns=_maybe_int(payload.get("num_turns")),
         model=payload.get("model"),
     )
-    extra = {
+    extra: dict[str, Any] = {
         k: payload[k]
         for k in (
             "session_id",
