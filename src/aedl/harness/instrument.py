@@ -34,11 +34,21 @@ TIERS: dict[str, list[str]] = {
         # class object, which every import spelling shares.
         "opensatcom.link.engine:DefaultLinkEngine.evaluate_snapshot",
     ],
-    # Tier-1 full-wave. Absent until EdgeFEM is wired in; the payload skips
-    # entry points whose module will not import.
+    # Tier-1 full-wave. EdgeFEM's extension module is pyedgefem; the
+    # payload skips entry points whose module will not import, so these are
+    # harmless where EdgeFEM is absent. (An earlier entry named a module
+    # `edgefem` and a callable `solve`, neither of which exists — the tier
+    # silently counted nothing.)
     "full_wave": [
-        "edgefem:solve",
+        "pyedgefem:solve_linear",
+        "pyedgefem:solve_port_eigens",
+        "pyedgefem:solve_te10_mode",
     ],
+    # Signal-level radar/comms simulation (I/Q, radar cubes). Orthogonal to
+    # the EM-fidelity axis above. Reserved: populated when a signal-level
+    # backend earns its place via a decision-gate task (see docs/roadmap.md,
+    # radar slice); until then it counts nothing.
+    "signal_level": [],
 }
 
 _PAYLOAD = '''\
