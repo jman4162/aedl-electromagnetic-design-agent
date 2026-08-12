@@ -394,3 +394,75 @@ Ordered by how much they affect whether a published number is trustworthy.
 
 Roughly 11 weeks at 5 hrs/week. Cut t2-005 and t3-002 first if it slips; keep t2-004
 (multi-scale) and t3-001 (held-out robustness) — those two carry the research claim.
+
+## Ecosystem slices (recorded 2026-08-11)
+
+Slice 1 shipped as phased-array-systems 0.11.0 (T/R modules, cascaded
+P1dB/compression/SNDR, DAC path, load-pull against EdgeFEM active-impedance
+scans, cited technology catalog). Slices 2 and 3 are specified here so they
+can be executed when prioritized, and so their absence is not mistaken for
+completeness.
+
+### Slice 2 — measurement-in-the-loop v1
+
+No repo in the stack has a concept of measured data today: APAB's importers
+parse then discard arrays, three incompatible pattern-CSV formats exist, and
+EdgeFEM's docs state no comparison against commercial solvers or measurement
+exists. The slice, in dependency order:
+
+1. **Measurement artifact contract.** A provenance block (instrument, date,
+   calibration state, uncertainty, operator) required on any measured
+   dataset. Touchstone via scikit-rf's reader wherever *measured* data is
+   consumed (antenna-cad already depends on scikit-rf and uses it nowhere;
+   opensatcom's hand-rolled weak Touchstone reader gets retired or fixed).
+   One blessed complex pattern-CSV format: EdgeFEM's NTF full-grid columns,
+   with a documented mapping from the two-cut format. phased-array-systems'
+   `LoadPullTable.from_csv` schema (Gamma_real, Gamma_imag, pout_drop_db,
+   pae_drop_pct, ampm_deg) is the load-pull entry point for bench data.
+2. **APAB**: `emtool_import_results` / `io_import_touchstone` stop
+   discarding arrays — parsed data persists into the run bundle; new
+   `compare_sim_measured` tool producing an RMSE / max-deviation report
+   artifact.
+3. **antenna-cad**: a `MeasuredSolver` implementing the existing `EMSolver`
+   protocol (reads the artifact into `SimulationResult`'s xarray shape) so
+   measured boards flow through the existing verify/report path; the
+   hardcoded acceptance numbers at `report.py:161` become config.
+4. **opensatcom**: wire `load_array_package` into config/CLI (today only
+   the never-produced `.npz` path is wired).
+5. **Fixture**: one real bench `.s2p` committed as the first measured
+   fixture; until a bench exists, contract tests use a synthetic file whose
+   provenance block marks it synthetic.
+
+Out of scope until hardware exists: pyvisa/SCPI instrument control.
+Unlocked by this slice: finite-array full-wave validation (EdgeFEM vs
+measurement), and fabricating an antenna-cad board as the first real
+fixture — the loop the ecosystem post named as its most honest gap.
+
+### Slice 3 — observability closure
+
+The honest remainder of the "agent operating system" question (answered no
+on the t3-001 gate: library-only 0/3 vs MCP-attached 2/3; no coordination
+layer earned). The pieces exist and are disconnected:
+
+1. **APAB**: `apab mcp serve` calls `init_observability` (env-gated, as
+   elsewhere) so server-side tool spans exist at all — today the OTel stack
+   is real but never initialized on the MCP path, so agent-driven runs emit
+   no spans and no bundles. W3C `traceparent` accepted via env for
+   cross-process correlation.
+2. **AEDL claude adapter**: an `--output-format stream-json` variant
+   capturing the tool-call transcript into the run bundle. This closes both
+   open items from the t3-001 measurement at once: no per-call transcript
+   under `json`, and `calls.jsonl` recording zero instrumented calls even
+   in the MCP arm (the server processes did not inherit the shim; with a
+   transcript, tool usage stops being inferred from workspace shape).
+3. **Strands**: one real, un-mocked integration test behind a marker (the
+   `strands` extra grows `[otel]`); example 07's telemetry verified against
+   the Jaeger lab in a documented manual check.
+
+Explicitly not building: any new orchestration package. The LangGraph
+pipeline remains the deterministic path; agents remain replaceable shells.
+
+### Registered, not scheduled
+
+The empty HFSS/CST adapter registry in APAB (seam exists, no implementors);
+metasurface-py island + stale 0.3.0 release; t2-002…005 above.
