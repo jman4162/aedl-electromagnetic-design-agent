@@ -1,0 +1,195 @@
+{
+  "run_id": "20260812T205314Z_t3-002_claude_b1d358a6",
+  "task_id": "t3-002",
+  "task_sha256": "d9bac4c2fab839862849ff4c3f7b6d0784607bbf436b7abc2c64306d01d6c762",
+  "agent": "claude",
+  "status": "pass",
+  "started_utc": "20260812T205314Z",
+  "agent_command": [
+    "claude",
+    "-p",
+    "Read BRIEF.md in the current directory and produce the submission file it asks for. Work in this directory only. When you are done, verify the file exists and has the required contents.",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--permission-mode",
+    "bypassPermissions",
+    "--tools",
+    "Bash,Read,Write,Edit,Glob,Grep",
+    "--setting-sources",
+    "project",
+    "--strict-mcp-config",
+    "--disable-slash-commands",
+    "--exclude-dynamic-system-prompt-sections",
+    "--no-session-persistence",
+    "--model",
+    "sonnet",
+    "--max-budget-usd",
+    "5.0"
+  ],
+  "model": "claude-sonnet-5",
+  "isolation": "tmpdir",
+  "instrumented": true,
+  "agent_returncode": 0,
+  "timed_out": false,
+  "agent_wall_time_s": 1612.172,
+  "usage": {
+    "input_tokens": 136,
+    "output_tokens": 92070,
+    "cache_read_tokens": 7194172,
+    "cache_creation_tokens": 185839,
+    "cost_usd": 4.655383600000001,
+    "num_turns": 68,
+    "model": "claude-sonnet-5",
+    "extra": {
+      "session_id": "d6fbf8f2-7ef9-4f0f-ae42-99da587de6c7",
+      "duration_ms": 1611219,
+      "duration_api_ms": 936259,
+      "is_error": false,
+      "subtype": "success",
+      "stop_reason": "end_turn",
+      "permission_denials": [],
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 555,
+          "outputTokens": 17,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.00064,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty"
+        },
+        "claude-sonnet-5": {
+          "inputTokens": 136,
+          "outputTokens": 92070,
+          "cacheReadInputTokens": 7194172,
+          "cacheCreationInputTokens": 185839,
+          "webSearchRequests": 0,
+          "costUSD": 4.654743600000001,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "canonicalModel": "claude-sonnet-5",
+          "provider": "firstParty"
+        }
+      }
+    }
+  },
+  "calls": {
+    "total_calls": 8187,
+    "nested_calls": 14562,
+    "calls_by_tier": {
+      "reduced_order": 7281,
+      "aperture_model": 906
+    },
+    "seconds_by_tier": {
+      "reduced_order": 237.5176,
+      "aperture_model": 20.1911
+    },
+    "calls_by_function": {
+      "phased_array_systems:evaluate_case": 7281,
+      "phased_array:array_factor_vectorized": 906
+    }
+  },
+  "requirements": [
+    {
+      "requirement_id": "detection",
+      "metric": "worst_case_pd",
+      "value": 0.7788345473837097,
+      "limit": ">= 0.7",
+      "passed": true
+    },
+    {
+      "requirement_id": "frame-time",
+      "metric": "worst_case_timeline_occupancy",
+      "value": 0.7798611111111111,
+      "limit": "<= 1.0",
+      "passed": true
+    },
+    {
+      "requirement_id": "availability",
+      "metric": "array_availability",
+      "value": 0.9982389134805061,
+      "limit": ">= 0.995",
+      "passed": true
+    },
+    {
+      "requirement_id": "sidelobes",
+      "metric": "worst_case_pattern_sll_db",
+      "value": -25.8091088417829,
+      "limit": "<= -20.0",
+      "passed": true
+    },
+    {
+      "requirement_id": "pd-crosscheck",
+      "metric": "crosscheck_pd_disagreement",
+      "value": 0.06672545261629026,
+      "limit": "<= 0.12",
+      "passed": true
+    },
+    {
+      "requirement_id": "gain-crosscheck",
+      "metric": "crosscheck_gain_disagreement_db",
+      "value": 0.009402930303906487,
+      "limit": "<= 0.5",
+      "passed": true
+    },
+    {
+      "requirement_id": "prime-power",
+      "metric": "prime_power_w",
+      "value": 4341.042984,
+      "limit": "<= 5500.0",
+      "passed": true
+    },
+    {
+      "requirement_id": "unit-cost",
+      "metric": "unit_cost_usd",
+      "value": 542880.0,
+      "limit": "<= 650000.0",
+      "passed": true
+    },
+    {
+      "requirement_id": "grating",
+      "metric": "grating_margin_lambda",
+      "value": 0.10872141602699958,
+      "limit": ">= 0.0",
+      "passed": true
+    }
+  ],
+  "error": null,
+  "environment": {
+    "python": "3.12.11",
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "dependencies": {
+      "aedl": "0.0.1",
+      "phased-array-modeling": "1.4.0",
+      "phased-array-systems": "0.10.1",
+      "opensatcom": "0.6.0",
+      "numpy": "2.5.2",
+      "scipy": "1.18.0",
+      "edgefem": "not installed"
+    }
+  },
+  "agent_interpreter": {
+    "executable": "/Users/johnhodge/.pyenv/versions/3.12.11/bin/python3",
+    "python": "3.12.11",
+    "numpy": "2.5.1",
+    "phased_array": "1.4.0",
+    "phased_array_systems": "0.11.0",
+    "opensatcom": "0.6.0"
+  },
+  "auth": {},
+  "transcript": {
+    "events": 585,
+    "tool_calls_total": 67,
+    "tool_calls_by_name": {
+      "Bash": 47,
+      "Edit": 5,
+      "Read": 14,
+      "Write": 1
+    }
+  },
+  "integrity": "clean"
+}

@@ -1,0 +1,32 @@
+{
+  "mcpServers": {
+    "opensatcom": {
+      "command": "/Users/johnhodge/Documents/code/aedl/.venv/bin/opensatcom",
+      "args": [
+        "mcp",
+        "serve"
+      ],
+      "env": {
+        "AEDL_CALL_LOG": "/Users/johnhodge/Documents/code/aedl/runs/20260812T195701Z_t3-002_claude_73d49569/calls.jsonl",
+        "AEDL_CALL_TIERS": "{\"aperture_model\": [\"phased_array:compute_full_pattern\", \"phased_array:compute_pattern_cuts\", \"phased_array:compute_pattern_uv_space\", \"phased_array:compute_pattern_vs_frequency\", \"phased_array:array_factor_vectorized\", \"phased_array:array_factor_fft\"], \"reduced_order\": [\"phased_array_systems:evaluate_case\", \"phased_array_systems:evaluate_config\", \"opensatcom.link.engine:DefaultLinkEngine.evaluate_snapshot\"], \"full_wave\": [\"pyedgefem:solve_linear\", \"pyedgefem:solve_port_eigens\", \"pyedgefem:solve_te10_mode\"], \"signal_level\": []}",
+        "PYTHONPATH": "/Users/johnhodge/Documents/code/aedl/runs/20260812T195701Z_t3-002_claude_73d49569/.shim",
+        "APAB_OBSERVABILITY": "1",
+        "APAB_TRACE_JSONL": "/Users/johnhodge/Documents/code/aedl/runs/20260812T195701Z_t3-002_claude_73d49569/server-trace.jsonl"
+      }
+    },
+    "apab": {
+      "command": "/Users/johnhodge/Documents/code/agentic-phased-array-builder/.venv/bin/apab",
+      "args": [
+        "mcp",
+        "serve"
+      ],
+      "env": {
+        "AEDL_CALL_LOG": "/Users/johnhodge/Documents/code/aedl/runs/20260812T195701Z_t3-002_claude_73d49569/calls.jsonl",
+        "AEDL_CALL_TIERS": "{\"aperture_model\": [\"phased_array:compute_full_pattern\", \"phased_array:compute_pattern_cuts\", \"phased_array:compute_pattern_uv_space\", \"phased_array:compute_pattern_vs_frequency\", \"phased_array:array_factor_vectorized\", \"phased_array:array_factor_fft\"], \"reduced_order\": [\"phased_array_systems:evaluate_case\", \"phased_array_systems:evaluate_config\", \"opensatcom.link.engine:DefaultLinkEngine.evaluate_snapshot\"], \"full_wave\": [\"pyedgefem:solve_linear\", \"pyedgefem:solve_port_eigens\", \"pyedgefem:solve_te10_mode\"], \"signal_level\": []}",
+        "PYTHONPATH": "/Users/johnhodge/Documents/code/aedl/runs/20260812T195701Z_t3-002_claude_73d49569/.shim",
+        "APAB_OBSERVABILITY": "1",
+        "APAB_TRACE_JSONL": "/Users/johnhodge/Documents/code/aedl/runs/20260812T195701Z_t3-002_claude_73d49569/server-trace.jsonl"
+      }
+    }
+  }
+}

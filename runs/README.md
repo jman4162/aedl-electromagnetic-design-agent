@@ -1,46 +1,60 @@
 # Run bundles
 
 Committed agent attempts, kept so the numbers quoted in the top-level README can be
-checked by someone else. Three groups:
+checked by someone else. Four groups:
 
 - **t2-001, 2026-08-10** (three bundles): the original calibration attempts.
 - **t3-001, 2026-08-11** (six bundles): the library-vs-MCP composition measurement,
   described below.
 - **t3-001, 2026-08-12** (two bundles): harness-instrumentation smoke runs after
   the Slice-3 observability work, described below.
-- **t3-002, 2026-08-12** (one bundle): first agent attempt at the new X-band
-  search radar task, described below.
+- **t3-002, 2026-08-12** (six bundles): the composition measurement repeated on
+  the X-band search radar task, described below.
 
-## t3-002: first attempt (2026-08-12)
+## t3-002: the composition measurement, second task (2026-08-12)
 
-`20260812T173726Z…73aa112d` — Claude Code (Sonnet 5), MCP-attached, passed all
-nine requirements on the first attempt ($1.03, 28 turns, 468 s). The design is
-not the reference's: the agent chose a 64x32 *rectangular* aperture — a
-narrower azimuth beam shrinks the clutter cell directly — and beat the
-reference on unit cost ($486k vs $513k). The full instrumentation shows the
-method: one `mcp__apab__system_evaluate` call plus its own pattern-sweep
-scripts (234 aperture-model calls across 4 processes in `calls.jsonl`),
-`integrity: clean`, APAB server spans in `server-trace.jsonl`. One attempt is
-an existence proof that the task is solvable by an agent, not a pass rate.
+Six attempts on the X-band search radar task, Claude Code (Sonnet 5), 30-minute
+timeout: three with the physics libraries importable and no tools attached, three
+with the opensatcom and APAB MCP servers attached (`--mcp-config`, config sha256
+in each manifest). Same protocol as the t3-001 measurement above.
 
-## t3-001: instrumentation smoke runs (2026-08-12)
+| series | attempt | outcome | failed on | design | est. cost | wall |
+|---|---|---|---|---|---|---|
+| MCP | 1 | **pass** | - | 64x32, class B, 6.0 W, 32 pulses | $1.03 | 468 s |
+| MCP | 2 | **pass** | - | 40x40, class C, 7.0 W, 64 pulses | $2.14 | 1172 s |
+| MCP | 3 | **pass** | - | 64x32, class B, 8.0 W, 32 pulses | $2.46 | 648 s |
+| library | 1 | fail | frame-time (occupancy 1.07 > 1.0) | 48x48, class B, 9.0 W, 36 pulses | $4.89 | 1295 s |
+| library | 2 | **pass** | - | 48x48, class B, 4.0 W, 56 pulses | $4.66 | 1612 s |
+| library | 3 | timeout | still sweeping at 1800 s | no submission | $4.43 | 1800 s |
 
-Both open integrity items from the composition measurement are closed, and these
-two bundles are the evidence. `20260812T034040Z…371bb314` (transcript capture):
-the stream-json adapter landed `transcript.jsonl` (714 events, 69 tool calls, 14
-of them MCP) and the manifest's `integrity: clean` — but `calls.jsonl` was still
-empty because the shim env paths were relative and resolved nowhere in processes
-with a different cwd. `20260812T070655Z…8a38b7ac` (after the absolute-path fix):
-`calls.jsonl` records 221 calls across 10 processes, including
-`DefaultLinkEngine.evaluate_snapshot` from inside the opensatcom MCP server —
-the call class that was invisible in every earlier bundle — and
-`server-trace.jsonl` carries the APAB server's own tool spans. Both runs passed
-all eight requirements.
+Three things the bundles show that the pass rate does not.
 
-That second bundle also shows something newly measurable: the agent used the MCP
-tools for link physics (1 opensatcom + 8 APAB calls) *and* wrote its own pattern
-scripts (107 aperture-model calls from Bash-spawned Pythons). Whether agents use
-the provided physics tooling stopped being an inference from workspace shape.
+**The MCP arm barely used the MCP tools.** Tool-call transcripts record 1, 0, and
+1 MCP calls across the three attempts. Whatever separates the arms here, it is not
+tool-call volume. One untested hypothesis: the tool schemas are themselves a menu
+of the variables the system model prices (Swerling case, CFAR type, clutter,
+search extents, PRF), visible in the system prompt whether or not the agent calls
+anything. Three attempts per arm cannot distinguish that from variance.
+
+**The cost gap is real and shows up in physics calls.** Instrumented model calls
+per attempt: MCP arm 238, 1714, 1009; library arm 3062, 8187, 30602. The library
+attempts wrote and ran their own parameter sweeps, which is where the 2.5x cost
+and 2x wall time went. The timed-out attempt was still sweeping at 1800 s with
+30,602 logged pattern computations.
+
+**Aperture shape split the arms.** Both 64x32 designs came from the MCP arm and
+are the two cheapest passing designs on record ($482,560 and $486,400), below the
+reference's $512,928. Both library attempts that submitted anything chose 48x48
+squares. The reference solver enumerated square apertures only, so the rectangular
+option was absent from the search space it defines, and the agents that found it
+found it on their own.
+
+Caveats. Three attempts per arm is directional and far too few for significance;
+one model family; the first MCP attempt ran hours before the other five against
+an identical task and harness. Costs are API-equivalent estimates
+(subscription-covered). Unlike the t3-001 bundles, every attempt here carries a
+tool-call transcript, an integrity flag (all six clean), and per-process physics
+call counts.
 
 ## t3-001: the composition measurement (2026-08-11)
 

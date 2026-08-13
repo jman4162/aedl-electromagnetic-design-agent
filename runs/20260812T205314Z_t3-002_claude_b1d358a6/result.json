@@ -1,0 +1,333 @@
+{
+  "task_id": "t3-002",
+  "passed": true,
+  "requirements": [
+    {
+      "requirement_id": "detection",
+      "metric": "worst_case_pd",
+      "value": 0.7788345473837097,
+      "limit": ">= 0.7",
+      "passed": true
+    },
+    {
+      "requirement_id": "frame-time",
+      "metric": "worst_case_timeline_occupancy",
+      "value": 0.7798611111111111,
+      "limit": "<= 1.0",
+      "passed": true
+    },
+    {
+      "requirement_id": "availability",
+      "metric": "array_availability",
+      "value": 0.9982389134805061,
+      "limit": ">= 0.995",
+      "passed": true
+    },
+    {
+      "requirement_id": "sidelobes",
+      "metric": "worst_case_pattern_sll_db",
+      "value": -25.8091088417829,
+      "limit": "<= -20.0",
+      "passed": true
+    },
+    {
+      "requirement_id": "pd-crosscheck",
+      "metric": "crosscheck_pd_disagreement",
+      "value": 0.06672545261629026,
+      "limit": "<= 0.12",
+      "passed": true
+    },
+    {
+      "requirement_id": "gain-crosscheck",
+      "metric": "crosscheck_gain_disagreement_db",
+      "value": 0.009402930303906487,
+      "limit": "<= 0.5",
+      "passed": true
+    },
+    {
+      "requirement_id": "prime-power",
+      "metric": "prime_power_w",
+      "value": 4341.042984,
+      "limit": "<= 5500.0",
+      "passed": true
+    },
+    {
+      "requirement_id": "unit-cost",
+      "metric": "unit_cost_usd",
+      "value": 542880.0,
+      "limit": "<= 650000.0",
+      "passed": true
+    },
+    {
+      "requirement_id": "grating",
+      "metric": "grating_margin_lambda",
+      "value": 0.10872141602699958,
+      "limit": ">= 0.0",
+      "passed": true
+    }
+  ],
+  "info": {
+    "metrics": {
+      "prime_power_w": 4341.042984,
+      "array_availability": 0.9982389134805061,
+      "unit_cost_usd": 542880.0,
+      "grating_margin_lambda": 0.10872141602699958,
+      "worst_case_pd": 0.7788345473837097,
+      "worst_case_timeline_occupancy": 0.7798611111111111,
+      "crosscheck_gain_disagreement_db": 0.009402930303906487,
+      "worst_case_pattern_sll_db": -25.8091088417829,
+      "crosscheck_pd_disagreement": 0.06672545261629026
+    },
+    "architecture": {
+      "array": {
+        "nx": 48,
+        "ny": 48,
+        "dx_lambda": 0.5,
+        "dy_lambda": 0.5,
+        "taper_type": "taylor",
+        "taper_sll_db": -35.0,
+        "phase_bits": 5
+      },
+      "rf": {
+        "tx_power_w_per_elem": 4.0,
+        "pa_class": "B"
+      },
+      "waveform": {
+        "prf_hz": 3000.0,
+        "n_pulses": 56
+      },
+      "digital": {
+        "digitization_level": "subarray",
+        "adc_enob": 12.0,
+        "subarray_nx": 8,
+        "subarray_ny": 8
+      }
+    },
+    "duty_cycle": 0.09899999999999999,
+    "per_point": [
+      {
+        "point": 0,
+        "seed": 101,
+        "pd": 0.8684773799611035,
+        "scnr_db": 9.44748510058817
+      },
+      {
+        "point": 0,
+        "seed": 211,
+        "pd": 0.869032860611865,
+        "scnr_db": 9.467325477562685
+      },
+      {
+        "point": 0,
+        "seed": 307,
+        "pd": 0.8683464607571604,
+        "scnr_db": 9.442820184715826
+      },
+      {
+        "point": 0,
+        "seed": 401,
+        "pd": 0.8684459774288747,
+        "scnr_db": 9.446365776914655
+      },
+      {
+        "point": 0,
+        "seed": 503,
+        "pd": 0.8687325165795945,
+        "scnr_db": 9.456588380297063
+      },
+      {
+        "point": 1,
+        "seed": 101,
+        "pd": 0.7979348717871473,
+        "scnr_db": 7.390506197362344
+      },
+      {
+        "point": 1,
+        "seed": 211,
+        "pd": 0.7986518051430607,
+        "scnr_db": 7.407965460000509
+      },
+      {
+        "point": 1,
+        "seed": 307,
+        "pd": 0.7977739120843148,
+        "scnr_db": 7.386593712037671
+      },
+      {
+        "point": 1,
+        "seed": 401,
+        "pd": 0.797902456340646,
+        "scnr_db": 7.389718052246207
+      },
+      {
+        "point": 1,
+        "seed": 503,
+        "pd": 0.7982633601349989,
+        "scnr_db": 7.398499156182582
+      },
+      {
+        "point": 2,
+        "seed": 101,
+        "pd": 0.8444652629274564,
+        "scnr_db": 8.655367077710277
+      },
+      {
+        "point": 2,
+        "seed": 211,
+        "pd": 0.845041957290234,
+        "scnr_db": 8.673051173125124
+      },
+      {
+        "point": 2,
+        "seed": 307,
+        "pd": 0.8443318685846821,
+        "scnr_db": 8.651284986303583
+      },
+      {
+        "point": 2,
+        "seed": 401,
+        "pd": 0.8444341945353612,
+        "scnr_db": 8.654416051736018
+      },
+      {
+        "point": 2,
+        "seed": 503,
+        "pd": 0.8447327851837426,
+        "scnr_db": 8.663563197646866
+      },
+      {
+        "point": 3,
+        "seed": 101,
+        "pd": 0.8776111460024594,
+        "scnr_db": 9.783966214227357
+      },
+      {
+        "point": 3,
+        "seed": 211,
+        "pd": 0.8779372962720463,
+        "scnr_db": 9.796404401507619
+      },
+      {
+        "point": 3,
+        "seed": 307,
+        "pd": 0.877541571519162,
+        "scnr_db": 9.781316858330593
+      },
+      {
+        "point": 3,
+        "seed": 401,
+        "pd": 0.8775951521237862,
+        "scnr_db": 9.783357053523213
+      },
+      {
+        "point": 3,
+        "seed": 503,
+        "pd": 0.8777599330637372,
+        "scnr_db": 9.789636610215826
+      },
+      {
+        "point": 4,
+        "seed": 101,
+        "pd": 0.8189977581910843,
+        "scnr_db": 7.9273837369979425
+      },
+      {
+        "point": 4,
+        "seed": 211,
+        "pd": 0.8193953812660031,
+        "scnr_db": 7.938032493754065
+      },
+      {
+        "point": 4,
+        "seed": 307,
+        "pd": 0.8189054635995773,
+        "scnr_db": 7.924914928483309
+      },
+      {
+        "point": 4,
+        "seed": 401,
+        "pd": 0.8189760292245857,
+        "scnr_db": 7.926802404646796
+      },
+      {
+        "point": 4,
+        "seed": 503,
+        "pd": 0.8191799339729876,
+        "scnr_db": 7.932260041485009
+      },
+      {
+        "point": 5,
+        "seed": 101,
+        "pd": 0.7998692827827749,
+        "scnr_db": 7.437737171029774
+      },
+      {
+        "point": 5,
+        "seed": 211,
+        "pd": 0.7998692827827749,
+        "scnr_db": 7.437737171029774
+      },
+      {
+        "point": 5,
+        "seed": 307,
+        "pd": 0.7998692827827749,
+        "scnr_db": 7.437737171029774
+      },
+      {
+        "point": 5,
+        "seed": 401,
+        "pd": 0.7998692827827749,
+        "scnr_db": 7.437737171029774
+      },
+      {
+        "point": 5,
+        "seed": 503,
+        "pd": 0.7998692827827749,
+        "scnr_db": 7.437737171029774
+      },
+      {
+        "point": 6,
+        "seed": 101,
+        "pd": 0.7788345473837097,
+        "scnr_db": 6.94377877719406
+      },
+      {
+        "point": 6,
+        "seed": 211,
+        "pd": 0.7788345473837097,
+        "scnr_db": 6.94377877719406
+      },
+      {
+        "point": 6,
+        "seed": 307,
+        "pd": 0.7788345473837097,
+        "scnr_db": 6.94377877719406
+      },
+      {
+        "point": 6,
+        "seed": 401,
+        "pd": 0.7788345473837097,
+        "scnr_db": 6.94377877719406
+      },
+      {
+        "point": 6,
+        "seed": 503,
+        "pd": 0.7788345473837097,
+        "scnr_db": 6.94377877719406
+      }
+    ],
+    "binding": {
+      "point": 6,
+      "seed": 101
+    },
+    "mc_pd_at_binding": 0.84556,
+    "versions": {
+      "phased-array-systems": "0.10.1",
+      "phased-array-modeling": "1.4.0"
+    }
+  },
+  "cost": {
+    "evaluation_wall_time_s": 100.782,
+    "n_model_evals": 35
+  }
+}
