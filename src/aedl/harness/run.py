@@ -13,7 +13,13 @@ from typing import Any
 from aedl.harness import instrument
 from aedl.harness import workspace as ws
 from aedl.harness.adapter import AgentAdapter
-from aedl.harness.record import RunRecord, utc_stamp
+from aedl.harness.record import (
+    RunRecord,
+    code_provenance,
+    environment_skew,
+    harness_environment,
+    utc_stamp,
+)
 from aedl.registry import get_evaluator
 from aedl.spec import TaskSpec
 
@@ -140,6 +146,20 @@ def probe_agent_interpreter(env: dict[str, str], cwd: Path) -> dict[str, Any]:
         return {"error": f"{type(exc).__name__}: {exc}"}
 
 
+def new_traceparent() -> tuple[str, str]:
+    """A W3C trace context for one run, as ``(header value, trace id)``.
+
+    MCP servers that honor ``TRACEPARENT`` parent their tool spans onto this, so
+    every span a run causes carries one trace id and the bundle joins to the
+    spans instead of sitting beside them. Minted here rather than by an
+    OpenTelemetry SDK because the harness emits no spans of its own and needs no
+    tracing dependency to hand one over.
+    """
+    trace_id = uuid.uuid4().hex
+    span_id = uuid.uuid4().hex[:16]
+    return f"00-{trace_id}-{span_id}-01", trace_id
+
+
 def build_child_env(adapter: AgentAdapter, extra: dict[str, str] | None = None) -> dict[str, str]:
     """Construct the agent's environment from an allowlist.
 
@@ -191,11 +211,18 @@ def run_task(
     work = ws.materialize(spec, isolation=isolation, parent=bundle)
     call_log = bundle / "calls.jsonl"
     env = build_child_env(adapter)
+    traceparent, record.trace_id = new_traceparent()
+    env["TRACEPARENT"] = traceparent
     if instrumented:
         shim = instrument.write_payload(bundle / ".shim")
         env = instrument.build_env(env, shim, call_log)
 
     record.agent_interpreter = probe_agent_interpreter(env, work)
+    # Snapshot the harness side here rather than at manifest-write time, so both
+    # halves of the environment describe the same instant as the probe above.
+    record.environment = harness_environment()
+    record.environment_skew = environment_skew(record.environment, record.agent_interpreter)
+    record.code = code_provenance(spec.evaluator)
 
     try:
         assert spec.path is not None

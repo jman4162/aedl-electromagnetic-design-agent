@@ -180,6 +180,150 @@ def test_agent_interpreter_is_probed_and_recorded(spec, tmp_path):
     assert probe["phased_array"], "BRIEF.md promises phased_array is importable"
 
 
+# --- provenance of the scoring side ----------------------------------------
+
+
+def test_manifest_pins_the_code_that_scored_the_run(spec, tmp_path):
+    """A task hash says what was asked; this says what did the asking."""
+    _, bundle = _run(spec, tmp_path, _writer(_reference_weights()))
+    code = json.loads((bundle / "manifest.json").read_text())["code"]
+    assert len(code["aedl_git_sha"]) == 40
+    assert isinstance(code["aedl_git_dirty"], bool)
+    assert code["evaluator"] == spec.evaluator
+    assert len(code["evaluator_source_sha256"]) == 64
+
+
+def test_code_provenance_degrades_outside_a_checkout(tmp_path, monkeypatch):
+    """An installed copy still writes a manifest, without inventing a revision."""
+    from aedl.harness import record as rec
+
+    monkeypatch.setattr(rec, "_git", lambda *a, **k: None)
+    out = rec.code_provenance("array_pattern")
+    assert "aedl_git_sha" not in out
+    assert out["evaluator"] == "array_pattern"
+
+
+def test_code_provenance_ignores_an_unrelated_enclosing_repo(monkeypatch):
+    """`git rev-parse` searches upwards; a foreign toplevel must not be adopted."""
+    from aedl.harness import record as rec
+
+    monkeypatch.setattr(rec, "_git", lambda *a, **k: "/somewhere/else")
+    assert "aedl_git_sha" not in rec.code_provenance()
+
+
+# --- provenance of the environment -----------------------------------------
+
+
+def test_environment_skew_is_empty_when_both_sides_agree(spec, tmp_path):
+    """The probe runs against this machine, so a normal run has nothing to report."""
+    record, _ = _run(spec, tmp_path, _writer(_reference_weights()))
+    for skew in record.environment_skew:
+        assert skew["harness"] != skew["agent"]
+
+
+def test_environment_skew_maps_import_names_to_distributions():
+    """`phased_array` is installed by `phased-array-modeling`; a naive diff misses it."""
+    from aedl.harness.record import environment_skew
+
+    env = {
+        "python": "3.12.11",
+        "dependencies": {"phased-array-modeling": "1.4.0", "numpy": "2.5.2"},
+    }
+    probe = {"python": "3.12.11", "phased_array": "1.5.0", "numpy": "2.5.2"}
+    assert environment_skew(env, probe) == [
+        {"package": "phased-array-modeling", "harness": "1.4.0", "agent": "1.5.0"}
+    ]
+
+
+def test_environment_skew_treats_a_missing_package_as_unknown():
+    """CI installs neither side of some packages; absent is not skew."""
+    from aedl.harness.record import environment_skew
+
+    env = {"python": "3.12.11", "dependencies": {"opensatcom": "not installed"}}
+    assert environment_skew(env, {"python": "3.12.11", "opensatcom": None}) == []
+    assert environment_skew(env, {"python": "3.12.11", "opensatcom": "0.6.0"}) == []
+
+
+def test_environment_skew_is_silent_when_the_probe_failed():
+    """A failed probe knows nothing about the agent's versions, including that they match."""
+    from aedl.harness.record import environment_skew
+
+    env = {"python": "3.12.11", "dependencies": {"numpy": "2.5.2"}}
+    assert environment_skew(env, {"error": "TimeoutExpired: ..."}) == []
+    assert environment_skew(env, {}) == []
+
+
+def test_report_shows_skew_only_when_there_is_some():
+    from aedl.harness.report import render, skew_table
+
+    clean = [{"run_id": "a", "task_id": "t2-001", "status": "pass"}]
+    assert skew_table(clean) == ""
+    assert "Environment skew" not in render(clean)
+
+    skewed = [
+        {
+            "run_id": "b",
+            "task_id": "t2-001",
+            "status": "pass",
+            "environment_skew": [{"package": "numpy", "harness": "2.5.2", "agent": "2.5.1"}],
+        }
+    ]
+    assert "Environment skew" in render(skewed)
+    assert "2.5.1" in skew_table(skewed)
+
+
+def test_report_derives_skew_for_bundles_written_before_the_field_existed():
+    """Both halves were always recorded; manifests are not rewritten, so derive at read time."""
+    from aedl.harness.report import skew_of
+
+    old = {
+        "run_id": "c",
+        "environment": {"python": "3.12.11", "dependencies": {"numpy": "2.5.2"}},
+        "agent_interpreter": {"python": "3.12.11", "numpy": "2.5.1"},
+    }
+    assert skew_of(old) == [{"package": "numpy", "harness": "2.5.2", "agent": "2.5.1"}]
+    # A recorded empty list is an answer, not a gap: do not re-derive over it.
+    assert skew_of({**old, "environment_skew": []}) == []
+
+
+# --- provenance of the tool spans ------------------------------------------
+
+
+def test_run_mints_one_traceparent_and_records_its_trace_id(spec, tmp_path):
+    """Every MCP server in a run gets the same root, so its spans share one trace."""
+    record, bundle = _run(spec, tmp_path, _writer(_reference_weights()))
+    assert record.trace_id is not None
+    assert len(record.trace_id) == 32
+    assert json.loads((bundle / "manifest.json").read_text())["trace_id"] == record.trace_id
+
+
+def test_traceparent_is_a_valid_w3c_header():
+    from aedl.harness.run import new_traceparent
+
+    header, trace_id = new_traceparent()
+    version, got_trace, span_id, flags = header.split("-")
+    assert (version, flags) == ("00", "01")
+    assert got_trace == trace_id
+    assert len(trace_id) == 32 and int(trace_id, 16) != 0
+    assert len(span_id) == 16 and int(span_id, 16) != 0
+    assert new_traceparent()[1] != trace_id
+
+
+def test_traceparent_reaches_every_mcp_server(tmp_path):
+    """APAB opens a fresh root trace per call unless the caller hands one over."""
+    from aedl.harness.adapters.claude_cli import inject_server_env
+
+    config = {"mcpServers": {"apab": {"command": "apab"}, "opensatcom": {"command": "osc"}}}
+    env = {
+        "AEDL_CALL_LOG": str(tmp_path / "calls.jsonl"),
+        "TRACEPARENT": "00-" + "a" * 32 + "-" + "b" * 16 + "-01",
+    }
+    servers = inject_server_env(config, env)["mcpServers"]
+    for server in servers.values():
+        assert server["env"]["TRACEPARENT"] == env["TRACEPARENT"]
+        assert server["env"]["APAB_TRACE_JSONL"].endswith("server-trace.jsonl")
+
+
 def test_reference_solutions_are_hidden_during_a_run_and_restored(spec, tmp_path):
     """The answer key must not be readable while an agent is working."""
 

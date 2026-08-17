@@ -466,6 +466,39 @@ layer earned). The pieces exist and are disconnected:
 Explicitly not building: any new orchestration package. The LangGraph
 pipeline remains the deterministic path; agents remain replaceable shells.
 
+### Slice 3 follow-up — provenance closure (done 2026-08-17)
+
+Reading the 17 committed bundles as a record rather than as results turned
+up three things the manifest could not answer. Item 1 of Slice 3 was
+half-delivered: APAB accepts an inbound `TRACEPARENT` (since its 0.4.0) and
+AEDL never sent one, so the cross-process correlation the slice specified
+did not exist. `20260812T070655Z_t3-001_claude_8a38b7ac/server-trace.jsonl`
+is the evidence: 8 spans, 8 trace ids, no parents.
+
+Closed: `code` (git sha, dirty flag, evaluator name, evaluator source
+hash), `environment_skew` (harness against agent interpreter, derived at
+read time for older bundles), and `trace_id` plus `TRACEPARENT` forwarding
+into every MCP server env block. See the CHANGELOG entry for the numbers.
+
+Left open, deliberately:
+
+1. **Per-turn span attribution.** `TRACEPARENT` is read once at server
+   start and held in a module global, so every tool span is a sibling under
+   one run-level root. Attributing a span to the agent turn that caused it
+   needs `_meta.traceparent` sent per `tools/call` (mcp 1.26's
+   `RequestParams.Meta` is `extra="allow"`, and the metadata reaches the
+   handler), APAB reading it inside `_InstrumentedFastMCP.call_tool`, and
+   `tracing.span()` accepting an explicit parent context. Two repos and an
+   APAB release; not worth it until something needs turn-level joins.
+2. **The forward query.** Every bundle points backward to its own inputs.
+   Nothing points forward, so "which recorded results depend on the
+   pre-fix sidelobe metric" is still answered by hand. That is what the
+   experiment store in the longer-term direction is for.
+3. **The existing bundles keep their gaps.** They are committed rather than
+   regenerated because a nondeterministic agent cannot reproduce them, so
+   these fields exist only for runs from here on. Read-time derivation
+   recovers the skew comparison and nothing else.
+
 ### Registered, not scheduled
 
 The empty HFSS/CST adapter registry in APAB (seam exists, no implementors);

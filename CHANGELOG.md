@@ -9,6 +9,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Slice 3 follow-up (provenance closure): the run record answers three
+  questions it previously could not.
+
+  `manifest.json` gains `code` — the AEDL git sha, a dirty flag, the
+  evaluator dispatched to, and a sha256 of that evaluator's source. Until
+  now `task_sha256` pinned what was asked and nothing pinned what did the
+  asking, which is why the sidelobe-metric correction cannot be bounded
+  against the t2-001 bundles: `result.json` records `-17.02 dB` for
+  attempt 3, the current evaluator says `-17.59 dB`, and no field
+  distinguishes the two. The one version that was recorded is not a
+  substitute: every bundle reports `dependencies.aedl == "0.0.1"` from a
+  stale editable install, unchanged across the whole run history.
+
+  `manifest.json` gains `environment_skew`, comparing the harness
+  environment that scored a run against the interpreter the agent designed
+  with. Both halves were already recorded and nothing read them against
+  each other. They disagree in 14 of the 17 committed bundles: `numpy`
+  2.5.2 against 2.5.1 throughout, and `phased-array-systems` 0.10.1
+  against 0.11.0 in the eight runs from 2026-08-12. Both satisfy the
+  declared `>=0.10,<1.0`, so no pin check would have caught it. The
+  comparison maps import names to distribution names (`phased_array` is
+  installed by `phased-array-modeling`) and treats a missing package or a
+  failed probe as unknown rather than as agreement. `aedl report` grows an
+  "Environment skew" section, which derives the comparison at read time for
+  bundles written before the field existed; manifests are still never
+  rewritten.
+
+  `manifest.json` gains `trace_id`, and the claude adapter forwards
+  `TRACEPARENT` into every MCP server's env block alongside the
+  instrumentation shim. APAB has adopted an inbound `TRACEPARENT` since
+  0.4.0 and AEDL never sent one, so each tool call opened its own root
+  trace: `20260812T070655Z_t3-001_claude_8a38b7ac/server-trace.jsonl` holds
+  8 spans with 8 distinct trace ids and no parents, while
+  `transcript.jsonl` records the same 8 calls under `toolu_...` ids, and
+  neither record carries the other's identifier. Spans now share the run's
+  trace id, which joins them to the bundle. Still open: `TRACEPARENT` is
+  read once at server start, so spans are siblings under one run-level
+  root and cannot be attributed to an individual agent turn. Per-turn
+  attribution needs `_meta.traceparent` per `tools/call` and an APAB
+  release.
+
 - `t3-002`: the second Tier-3 task — an X-band maritime search radar
   architecture must reach a per-scan detection floor against Swerling-1
   surface craft over sea clutter, worst-case over a held-out envelope

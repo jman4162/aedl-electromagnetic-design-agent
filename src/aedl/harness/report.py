@@ -8,6 +8,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+from aedl.harness.record import environment_skew
+
 _STATUS_GLYPH = {
     "pass": "pass",
     "fail": "fail",
@@ -118,9 +120,43 @@ def summary_table(records: list[dict[str, Any]]) -> str:
     return "\n".join(rows)
 
 
+def skew_of(rec: dict[str, Any]) -> list[dict[str, str]]:
+    """The recorded skew, or the same comparison derived from the two halves.
+
+    Bundles written before `environment_skew` existed still carry both
+    environments, so the comparison can be made at read time. Manifests are
+    never rewritten after the fact, which is why this is derived here rather
+    than backfilled into the record.
+    """
+    recorded = rec.get("environment_skew")
+    if isinstance(recorded, list):
+        return [s for s in recorded if isinstance(s, dict)]
+    return environment_skew(rec.get("environment") or {}, rec.get("agent_interpreter") or {})
+
+
+def skew_table(records: list[dict[str, Any]]) -> str:
+    """Runs scored against different library versions than the agent designed with.
+
+    Empty string when every run agreed, so the section stays out of the report
+    until there is something to act on.
+    """
+    rows = ["| run | package | scored with | designed with |", "|" + "---|" * 4]
+    for r in records:
+        for skew in skew_of(r):
+            rows.append(
+                f"| `{str(r.get('run_id', '?'))[:24]}` | {skew.get('package', '?')} | "
+                f"{skew.get('harness', '?')} | {skew.get('agent', '?')} |"
+            )
+    return "\n".join(rows) if len(rows) > 2 else ""
+
+
 def render(records: list[dict[str, Any]]) -> str:
     if not records:
         return "No runs found."
-    return (
+    out = (
         "## Pass rate\n\n" + summary_table(records) + "\n\n## Runs\n\n" + runs_table(records) + "\n"
     )
+    skew = skew_table(records)
+    if skew:
+        out += "\n## Environment skew\n\n" + skew + "\n"
+    return out

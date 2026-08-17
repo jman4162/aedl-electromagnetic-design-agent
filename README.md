@@ -104,7 +104,11 @@ generated `BRIEF.md`, runs the agent there, scores whatever it leaves in
 
 ```
 runs/<UTC>_<task>_<agent>_<id>/
-  manifest.json   provenance, status, token/cost usage, model-call counts
+  manifest.json   provenance, status, token/cost usage, model-call counts;
+                  `code` pins the AEDL revision and evaluator source that
+                  scored the run, `environment_skew` names any library the
+                  harness scored with and the agent did not design with, and
+                  `trace_id` is the root the MCP servers' spans hang from
   result.json     per-requirement scoring
   workspace/      what the agent produced
   calls.jsonl     every physics-model call, tagged by fidelity tier

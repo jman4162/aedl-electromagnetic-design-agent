@@ -157,8 +157,10 @@ class ClaudeCliAdapter:
 
 
 #: Instrumentation env vars forwarded into each MCP server's env block, plus
-#: server-side APAB observability so its spans land in the bundle.
-_SERVER_ENV_KEYS = ("AEDL_CALL_LOG", "AEDL_CALL_TIERS", "PYTHONPATH")
+#: server-side APAB observability so its spans land in the bundle. TRACEPARENT
+#: is what makes those spans one trace: without it a server opens a fresh root
+#: trace per tool call, and the bundle cannot say which calls belong to it.
+_SERVER_ENV_KEYS = ("AEDL_CALL_LOG", "AEDL_CALL_TIERS", "PYTHONPATH", "TRACEPARENT")
 
 
 def inject_server_env(config: dict[str, Any], env: dict[str, str]) -> dict[str, Any]:
