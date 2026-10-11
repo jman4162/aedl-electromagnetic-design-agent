@@ -22,8 +22,11 @@ jobs:
 
       # setup-uv provisions a virtualenv and exports VIRTUAL_ENV; installing
       # with --system instead would hit the runner's externally-managed Python.
+      # The element extra (antenna-cad) lets the t1-001 tests run here. The
+      # t3 and t4 tests need the systems and sysml extras and take minutes
+      # of pattern integration; they skip in CI and run nightly or locally.
       - name: Install
-        run: uv pip install -e ".[dev]"
+        run: uv pip install -e ".[dev,element]"
 
       - name: Lint
         run: uv run ruff check .
