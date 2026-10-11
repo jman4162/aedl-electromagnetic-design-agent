@@ -47,6 +47,11 @@ systems = [
 # Tier-1 element tasks: antenna-cad synthesizes patch geometry from a
 # DesignSpec (and runs openEMS for the full-wave tier when installed).
 element = ["antenna-cad>=0.2,<0.3; python_version >= '3.11'"]
+# Tier-4 cross-layer tasks read requirements from a SysML v2 model.
+sysml = [
+    "sysml2kit>=0.4,<0.5; python_version >= '3.11'",
+    "sysml2kit-rf-library>=0.2.1,<0.3; python_version >= '3.11'",
+]
 # README figure generation, a maintainer task rather than a user requirement.
 # Pinned narrowly because matplotlib's SVG output is byte-stable only within a
 # minor version and CI compares committed figures byte for byte. The marker

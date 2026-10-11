@@ -1,0 +1,160 @@
+{
+  "schema": "aedl.t4-001.bundle/1",
+  "architecture": {
+    "array": {
+      "nx": 16,
+      "ny": 16,
+      "dx_lambda": 0.5,
+      "dy_lambda": 0.5,
+      "taper_type": "taylor",
+      "taper_sll_db": -34.0,
+      "phase_bits": 4
+    },
+    "rf": {
+      "tx_power_w_per_elem": 0.1903,
+      "pa_class": "A"
+    },
+    "digital": {
+      "digitization_level": "subarray",
+      "adc_enob": 10.0,
+      "subarray_nx": 8,
+      "subarray_ny": 8
+    }
+  },
+  "element_spec": "element/design.yaml",
+  "board": "board/patch.kicad_pcb",
+  "verdicts": {
+    "ELEM-F-RES-HI": {
+      "status": "pass",
+      "actual": 27.64972,
+      "unit": "GHz",
+      "provenance": {
+        "artifact_hash": "sha256:1c7cc592b9347a224f32b30b666b8123dd78aeff90e615458006723c932fcff6",
+        "capability": "aedl.evaluators.patch_element",
+        "origin": "derived",
+        "fidelity": "analytic"
+      }
+    },
+    "ELEM-F-RES-LO": {
+      "status": "pass",
+      "actual": 27.64972,
+      "unit": "GHz",
+      "provenance": {
+        "artifact_hash": "sha256:1c7cc592b9347a224f32b30b666b8123dd78aeff90e615458006723c932fcff6",
+        "capability": "aedl.evaluators.patch_element",
+        "origin": "derived",
+        "fidelity": "analytic"
+      }
+    },
+    "ELEM-FOOTPRINT": {
+      "status": "pass",
+      "actual": 5.539852,
+      "unit": "mm",
+      "provenance": {
+        "artifact_hash": "sha256:1c7cc592b9347a224f32b30b666b8123dd78aeff90e615458006723c932fcff6",
+        "capability": "aedl.evaluators.patch_element",
+        "origin": "derived",
+        "fidelity": "analytic"
+      }
+    },
+    "ELEM-S11-IN-BAND": {
+      "status": "pass",
+      "actual": -13.135383,
+      "unit": "dB",
+      "provenance": {
+        "artifact_hash": "sha256:1c7cc592b9347a224f32b30b666b8123dd78aeff90e615458006723c932fcff6",
+        "capability": "aedl.evaluators.patch_element",
+        "origin": "derived",
+        "fidelity": "analytic"
+      }
+    },
+    "REQ-CLEARSKY-AGREE": {
+      "status": "pass",
+      "actual": 0.349822,
+      "unit": "dB",
+      "provenance": {
+        "artifact_hash": "sha256:b246bbc579495cb35bd4021dbf347b9cd29918adb4357a3c5cf6fae64c2c6c3a",
+        "capability": "aedl.evaluators.satcom_terminal",
+        "origin": "derived",
+        "fidelity": "analytic"
+      }
+    },
+    "REQ-COST": {
+      "status": "pass",
+      "actual": 21152.0,
+      "unit": "USD",
+      "provenance": {
+        "artifact_hash": "sha256:b246bbc579495cb35bd4021dbf347b9cd29918adb4357a3c5cf6fae64c2c6c3a",
+        "capability": "aedl.evaluators.satcom_terminal",
+        "origin": "derived",
+        "fidelity": "analytic"
+      }
+    },
+    "REQ-GAIN-XCHECK": {
+      "status": "pass",
+      "actual": 0.119984,
+      "unit": "dB",
+      "provenance": {
+        "artifact_hash": "sha256:b246bbc579495cb35bd4021dbf347b9cd29918adb4357a3c5cf6fae64c2c6c3a",
+        "capability": "aedl.evaluators.satcom_terminal",
+        "origin": "derived",
+        "fidelity": "analytic"
+      }
+    },
+    "REQ-GRATING": {
+      "status": "pass",
+      "actual": 0.035898,
+      "unit": null,
+      "provenance": {
+        "artifact_hash": "sha256:b246bbc579495cb35bd4021dbf347b9cd29918adb4357a3c5cf6fae64c2c6c3a",
+        "capability": "aedl.evaluators.satcom_terminal",
+        "origin": "derived",
+        "fidelity": "analytic"
+      }
+    },
+    "REQ-INDEP-LINK": {
+      "status": "pass",
+      "actual": 12.042138,
+      "unit": "dB",
+      "provenance": {
+        "artifact_hash": "sha256:b246bbc579495cb35bd4021dbf347b9cd29918adb4357a3c5cf6fae64c2c6c3a",
+        "capability": "aedl.evaluators.satcom_terminal",
+        "origin": "derived",
+        "fidelity": "analytic"
+      }
+    },
+    "REQ-LINK-MARGIN": {
+      "status": "pass",
+      "actual": 0.399299,
+      "unit": "dB",
+      "provenance": {
+        "artifact_hash": "sha256:b246bbc579495cb35bd4021dbf347b9cd29918adb4357a3c5cf6fae64c2c6c3a",
+        "capability": "aedl.evaluators.satcom_terminal",
+        "origin": "derived",
+        "fidelity": "analytic"
+      }
+    },
+    "REQ-POWER": {
+      "status": "pass",
+      "actual": 435.96584,
+      "unit": "W",
+      "provenance": {
+        "artifact_hash": "sha256:b246bbc579495cb35bd4021dbf347b9cd29918adb4357a3c5cf6fae64c2c6c3a",
+        "capability": "aedl.evaluators.satcom_terminal",
+        "origin": "derived",
+        "fidelity": "analytic"
+      }
+    },
+    "REQ-SLL": {
+      "status": "pass",
+      "actual": -17.146192,
+      "unit": "dB",
+      "provenance": {
+        "artifact_hash": "sha256:b246bbc579495cb35bd4021dbf347b9cd29918adb4357a3c5cf6fae64c2c6c3a",
+        "capability": "aedl.evaluators.satcom_terminal",
+        "origin": "derived",
+        "fidelity": "analytic"
+      }
+    }
+  }
+}

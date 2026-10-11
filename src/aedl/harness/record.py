@@ -27,6 +27,8 @@ TRACKED_PACKAGES = (
     "scipy",
     "edgefem",
     "antenna-cad",
+    "sysml2kit",
+    "sysml2kit-rf-library",
 )
 
 

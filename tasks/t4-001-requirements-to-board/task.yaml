@@ -1,0 +1,161 @@
+id: t4-001
+tier: 4
+title: Requirements to board for the SatcomTerminal28GHz model, with a verifiable design bundle
+summary: >
+  Start from the SysML v2 model SatcomTerminal28GHz in sysml2kit-rf-library
+  and produce a design bundle that closes as many of its requirements as you
+  can: a terminal architecture, a patch element DesignSpec, a KiCad board for
+  that element, and a verification report giving a verdict for every
+  requirement. The evaluator re-runs the verification itself from your
+  architecture and element spec and scores whether your verdicts agree with
+  what it finds, whether every number you report says where it came from,
+  and whether the board file is a parseable KiCad PCB. How many requirements
+  the design actually closes is reported as a score alongside.
+
+context:
+  sysml_model:
+    distribution: sysml2kit-rf-library
+    model: satcom-terminal-t3001
+    package: SatcomTerminal28GHz
+    load: sysml2kit_rf_library.load_model("satcom-terminal-t3001")
+  system_requirement_ids:
+    - REQ-CLEARSKY-AGREE
+    - REQ-COST
+    - REQ-GAIN-XCHECK
+    - REQ-GRATING
+    - REQ-INDEP-LINK
+    - REQ-LINK-MARGIN
+    - REQ-POWER
+    - REQ-SLL
+  element_requirement_ids:
+    - ELEM-F-RES-HI
+    - ELEM-F-RES-LO
+    - ELEM-FOOTPRINT
+    - ELEM-S11-IN-BAND
+  # System verification context: identical to task t3-001 (a test enforces it).
+  system:
+    link:
+      frequency_ghz: 28.0
+      bandwidth_mhz: 50.0
+      required_snr_db: 6.0
+      satellite_rx_gain_db: 38.0
+      satellite_noise_figure_db: 2.5
+      duty_cycle: 1.0
+    nominal_scenario:
+      elevation_deg: 45.0
+      slant_range_km: 815.0
+      scan_angle_deg: 30.0
+      rain_rate_mmh: 0.0
+      sky_noise_temp_k: 150.0
+    evaluation_envelope_bounds:
+      scan_angle_deg_max: 60.0
+      elevation_deg_min: 20.0
+      slant_range_km_max: 1390.0
+      rain_rate_mmh_max: 2.5
+      sky_noise_temp_k_max: 275.0
+      element_failure_rate: 0.02
+    constraints:
+      prime_power_ceiling_w: 450.0
+      unit_cost_ceiling_usd: 45000.0
+    parts:
+      element_base_cost_usd: 55.0
+      pa_classes:
+        A: {pa_efficiency: 0.15, cost_adder_usd_per_elem: 15.0}
+        B: {pa_efficiency: 0.25, cost_adder_usd_per_elem: 45.0}
+        C: {pa_efficiency: 0.35, cost_adder_usd_per_elem: 110.0}
+      phase_shifter:
+        3: 5.0
+        4: 12.0
+        5: 25.0
+        6: 50.0
+      adc_cost_usd_per_channel: 40.0
+      rx_power_w_per_elem: 0.15
+      feed_loss_db: 1.5
+      tx_power_w_per_elem_max: 2.0
+    element:
+      model: cos_q
+      q: 1.3
+  # Element verification context: identical to task t1-001 (a test enforces it).
+  element:
+    band_ghz: [27.5, 28.5]
+    system_impedance_ohm: 50.0
+    substrate:
+      name: RO4350B
+      eps_r: 3.66
+      tan_delta: 0.0037
+      default_height_mm: 0.254
+      stock_heights_mm: [0.101, 0.168, 0.254, 0.338, 0.422, 0.508, 0.762, 1.524]
+    conductor:
+      sigma_s_per_m: 5.8e7
+    feed: inset microstrip line from the board edge (antenna-cad 0.2 synthesizes inset feeds only)
+    footprint_mm_max: 6.0
+    synthesis: antenna-cad 0.2 DesignSpec (RectangularPatch.synthesize, then to_design)
+  provenance:
+    origins: [derived, vendor_claimed, imported, measured, assumed]
+    fidelities: [analytic, fullwave_open, fullwave_commercial, measured]
+
+deliverable:
+  filename: submission/bundle.json
+  format: json
+  description: >
+    A directory named submission/ containing bundle.json and the files it
+    references by paths relative to submission/ (paths may not leave it).
+    bundle.json is an object with exactly these keys (schema is optional):
+    "schema": a version string of your choice;
+    "architecture": the terminal architecture with the same sections and keys
+    as task t3-001's architecture.yaml, i.e. array {nx, ny, dx_lambda,
+    dy_lambda, taper_type, taper_sll_db, phase_bits}, rf {tx_power_w_per_elem,
+    pa_class}, digital {digitization_level, adc_enob, subarray_nx,
+    subarray_ny}, with the same allowed values and the same rule that
+    efficiencies, noise figure, losses and costs come from the parts table;
+    "element_spec": path to an antenna-cad DesignSpec YAML following task
+    t1-001's rules (design, requirements, element sections; RO4350B, a stock
+    thickness, linear polarization, no geometry);
+    "board": path to a .kicad_pcb file;
+    "verdicts": an object mapping every requirement id listed in the context
+    to {"status": "pass" | "fail" | "unknown", "actual": number or null,
+    "unit": string or null, "provenance": {"artifact_hash", "capability",
+    "origin", "fidelity"}}. artifact_hash is a SHA-256 hex digest, optionally
+    prefixed "sha256:"; capability names the tool or function that produced
+    the number; origin and fidelity come from the vocabularies in the context.
+  scoring_notes:
+    - >
+      The system requirements are read from the SysML model and re-verified
+      from your architecture exactly as task t3-001 scores an architecture:
+      worst case over a held-out envelope inside the declared bounds with
+      seeded element failures, pattern claims recomputed by full pattern
+      integration, the link recomputed independently with opensatcom.
+    - >
+      The element requirements are task t1-001's (|S11| <= -10 dB over
+      27.5-28.5 GHz, footprint <= 6 mm, resonance in band), re-verified from
+      your element spec at t1-001's analytic tier, and reported here as
+      ELEM-<t1-001 id in capitals>.
+    - >
+      verdict_agreement counts a requirement as agreeing when your status
+      equals the recomputed status; a missing verdict disagrees.
+      provenance_completeness is the fraction of verdicts with a numeric
+      actual whose provenance record is complete and well formed. board_valid
+      checks that the board parses as one (kicad_pcb ...) S-expression with
+      version and generator entries. The number of requirements your design
+      actually closes is reported as a score, not a gate.
+    - >
+      numpy, phased_array, phased_array_systems, opensatcom, antenna_cad,
+      sysml2kit, and sysml2kit_rf_library are installed in your environment.
+
+evaluator:
+  name: requirements_bundle
+  params:
+    system_task: t3-001
+    element_task: t1-001
+    element_prefix: ELEM-
+
+requirements:
+  - id: verdict-agreement
+    metric: verdict_agreement
+    min: 0.9
+  - id: provenance
+    metric: provenance_completeness
+    min: 0.95
+  - id: board
+    metric: board_valid
+    min: 1.0
