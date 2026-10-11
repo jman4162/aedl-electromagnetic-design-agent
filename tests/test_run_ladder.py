@@ -52,7 +52,7 @@ def test_runs_every_baseline_and_repeat(ladder, fake_bin, tmp_path, capsys):
     assert ladder["main"](_argv(tmp_path)) == 0
     assert len(list((tmp_path / "runs").glob("*/manifest.json"))) == 4
     out = capsys.readouterr().out
-    assert "| t2-001 | b0 | ollama/qwen3.5:9b | 2 | 100% | 0 | 0.0000 |" in out
+    assert "| t2-001 | b0 | - | 2 | 100% | 0 | 0.0000 |" in out
     assert "| t2-001 | b2 | ollama/qwen3.5:9b | 2 | 100% | 1,540 | 0.0125 |" in out
     assert not (tmp_path / "leaderboard.md").exists()
 
@@ -65,6 +65,7 @@ def test_write_leaderboard_appends(ladder, fake_bin, tmp_path):
     assert text.startswith("# existing\n")
     assert "EdgeArray baseline ladder" in text
     assert "| task | baseline | model | runs | pass rate | mean tokens | mean cost USD |" in text
+    assert "Approvals: all rejected" in text
 
 
 def test_table_handles_runs_without_usage(ladder):
@@ -93,3 +94,23 @@ def test_table_handles_runs_without_usage(ladder):
 def test_unknown_baseline_is_an_argument_error(ladder, tmp_path):
     with pytest.raises(SystemExit):
         ladder["main"](["--task", "t2-001", "--model", "m", "--baselines", "b7"])
+
+
+def test_approval_and_budget_reach_every_baseline(ladder, fake_bin, tmp_path, capsys):
+    import json
+
+    argv = _argv(tmp_path, "--approve-all", "--budget-s", "300")
+    assert ladder["main"](argv) == 0
+    assert "Approvals: all approved (--approve-all). EdgeArray budget per attempt: 300 s." in (
+        capsys.readouterr().out
+    )
+    seen = [
+        json.loads(p.read_text())
+        for p in (tmp_path / "runs").glob("*/workspace/edgearray/argv.json")
+    ]
+    assert len(seen) == 4
+    for args in seen:
+        assert "--approve-all" in args
+        assert args[args.index("--budget-s") + 1] == "300"
+        # b0 runs EdgeArray's rules without a model.
+        assert ("--model" in args) == (args[args.index("--baseline") + 1] != "b0")

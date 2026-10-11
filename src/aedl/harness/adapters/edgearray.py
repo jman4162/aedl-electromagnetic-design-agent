@@ -1,7 +1,7 @@
 """Adapter for the EdgeArray Studio headless agent CLI.
 
 Runs ``edgearray agent run --brief FILE --workspace DIR --project ID
-[--model ENDPOINT] --baseline bN [--approve-all]`` through the command
+--baseline bN [--model ENDPOINT] [--budget-s N] [--approve-all]`` through the command
 adapter. EdgeArray works in its own directory (``edgearray/`` inside the AEDL
 workspace) and writes ``submission.json`` (final text, verdicts, usage, tool
 calls) and ``transcript.jsonl`` there. Afterwards this adapter maps the
@@ -59,6 +59,7 @@ class EdgeArrayAdapter(CommandAdapter):
         project: str | None = None,
         approve_all: bool = True,
         binary: str | None = None,
+        budget_s: int | None = None,
     ):
         if baseline not in BASELINES:
             raise ValueError(
@@ -68,6 +69,7 @@ class EdgeArrayAdapter(CommandAdapter):
         self._baseline = baseline
         self._project = project
         self._approve_all = approve_all
+        self._budget_s = budget_s
         # The command adapter wants a template; ours is built per workspace in
         # build_command, so this string only documents the invocation.
         super().__init__(template=f"{shlex.quote(self._binary)} agent run", model=model)
@@ -99,6 +101,8 @@ class EdgeArrayAdapter(CommandAdapter):
         ]
         if self._model:
             cmd += ["--model", self._model]
+        if self._budget_s is not None:
+            cmd += ["--budget-s", str(self._budget_s)]
         if self._approve_all:
             cmd.append("--approve-all")
         return cmd
@@ -112,6 +116,7 @@ class EdgeArrayAdapter(CommandAdapter):
             "baseline": self._baseline,
             "project": self._project_id(workspace),
             "approve_all": self._approve_all,
+            "budget_s": self._budget_s,
             "edgearray_workspace": WORKSPACE_SUBDIR,
         }
         warnings: list[str] = []
@@ -187,8 +192,10 @@ def _copy_deliverables(
 ) -> list[str]:
     """Copy the task deliverable, and anything submission.json lists, up a level.
 
-    Only paths that resolve inside EdgeArray's workspace are copied, and an
-    existing file in the AEDL workspace is never overwritten.
+    Only paths that resolve inside EdgeArray's workspace are copied, a
+    deliverable that is or contains a symlink is refused (copying would
+    follow it out of the workspace), and an existing file in the AEDL
+    workspace is never overwritten.
     """
     expected = Path(submission_name_from_dir(workspace)).parts[0]
     listed = doc.get("deliverables")
@@ -204,6 +211,9 @@ def _copy_deliverables(
             if name != expected:
                 warnings.append(f"listed deliverable {name!r} was not written")
             continue
+        if _contains_symlink(ea_ws / name):
+            warnings.append(f"refused deliverable {name!r}: it is or contains a symlink")
+            continue
         dest = workspace / src.relative_to(root)
         if dest.exists():
             warnings.append(f"kept existing {dest.name!r} in the AEDL workspace")
@@ -217,6 +227,14 @@ def _copy_deliverables(
     return copied
 
 
+def _contains_symlink(path: Path) -> bool:
+    if path.is_symlink():
+        return True
+    if path.is_dir():
+        return any(p.is_symlink() for p in path.rglob("*"))
+    return False
+
+
 @register_adapter("edgearray")
 def _factory(
     model: str | None = None,
@@ -224,8 +242,14 @@ def _factory(
     project: str | None = None,
     approve_all: bool = True,
     binary: str | None = None,
+    budget_s: int | None = None,
     **_ignored: Any,
 ) -> EdgeArrayAdapter:
     return EdgeArrayAdapter(
-        model=model, baseline=baseline, project=project, approve_all=approve_all, binary=binary
+        model=model,
+        baseline=baseline,
+        project=project,
+        approve_all=approve_all,
+        binary=binary,
+        budget_s=budget_s,
     )

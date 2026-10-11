@@ -18,6 +18,7 @@ from aedl.harness.record import (
     code_provenance,
     environment_skew,
     harness_environment,
+    screening_tier,
     utc_stamp,
 )
 from aedl.registry import get_evaluator
@@ -254,6 +255,9 @@ def run_task(
                 result = get_evaluator(spec.evaluator)(spec, submission)
                 record.status = "pass" if result.passed else "fail"
                 record.requirements = [asdict(r) for r in result.requirements]
+                record.tier = screening_tier(result.info)
+                score = result.info.get("score")
+                record.score = dict(score) if isinstance(score, dict) else {}
                 (bundle / "result.json").write_text(result.to_json())
             except Exception as exc:  # a malformed submission is a result, not a crash
                 record.status = "evaluator_error"

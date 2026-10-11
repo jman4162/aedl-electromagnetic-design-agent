@@ -75,20 +75,33 @@ def _fmt(value: object, spec: str = "", dash: str = "—") -> str:
         return format(value)
 
 
+def tier_of(rec: dict[str, Any]) -> str | None:
+    """The run's screening-tier label, if its verdict was not a certifying one."""
+    tier = rec.get("tier")
+    return str(tier) if tier else None
+
+
+def _has_tiers(records: list[dict[str, Any]]) -> bool:
+    return any(tier_of(r) for r in records)
+
+
 def runs_table(records: list[dict[str, Any]]) -> str:
+    tiers = _has_tiers(records)
     header = (
-        "| run | task | agent | model | outcome | failed requirements | "
-        "turns | tokens out | est. cost USD | wall s | model calls |"
+        "| run | task | agent | model | outcome | "
+        + ("tier | " if tiers else "")
+        + "failed requirements | turns | tokens out | est. cost USD | wall s | model calls |"
     )
-    rows = [header, "|" + "---|" * 11]
+    rows = [header, "|" + "---|" * (12 if tiers else 11)]
     for r in records:
         usage = r.get("usage") or {}
         calls = r.get("calls") or {}
         status = r.get("status", "unknown")
+        tier_cell = f"{tier_of(r) or '—'} | " if tiers else ""
         rows.append(
             f"| `{str(r.get('run_id', '?'))[:24]}` | {r.get('task_id', '?')} | "
             f"{r.get('agent', '?')} | "
-            f"{model_of(r)} | {_STATUS_GLYPH.get(status, status)} | "
+            f"{model_of(r)} | {_STATUS_GLYPH.get(status, status)} | {tier_cell}"
             f"{_failed_requirements(r)} | {_fmt(usage.get('num_turns'), 'd')} | "
             f"{_fmt(usage.get('output_tokens'), ',d')} | {_fmt(usage.get('cost_usd'), '.3f')} | "
             f"{_fmt(r.get('agent_wall_time_s'), '.0f')} | {_fmt(calls.get('total_calls'), 'd')} |"
@@ -101,11 +114,16 @@ def summary_table(records: list[dict[str, Any]]) -> str:
     for r in records:
         grouped[(r.get("task_id", "?"), model_of(r))].append(r)
 
+    tiers = _has_tiers(records)
     rows = [
-        "| task | model | attempts | passed | pass rate | median est. cost USD |",
-        "|" + "---|" * 6,
+        "| task | model | "
+        + ("tier | " if tiers else "")
+        + "attempts | passed | pass rate | median est. cost USD |",
+        "|" + "---|" * (7 if tiers else 6),
     ]
     for (task, agent), group in sorted(grouped.items()):
+        labels = sorted({t for r in group if (t := tier_of(r))})
+        tier_cell = f"{', '.join(labels) or '—'} | " if tiers else ""
         passed = sum(1 for r in group if r.get("status") == "pass")
         costs = sorted(
             cost
@@ -114,7 +132,7 @@ def summary_table(records: list[dict[str, Any]]) -> str:
         )
         median = statistics.median(costs) if costs else None
         rows.append(
-            f"| {task} | {agent} | {len(group)} | {passed} | "
+            f"| {task} | {agent} | {tier_cell}{len(group)} | {passed} | "
             f"{passed / len(group):.0%} | {_fmt(median, '.3f')} |"
         )
     return "\n".join(rows)

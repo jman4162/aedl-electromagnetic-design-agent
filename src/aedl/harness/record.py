@@ -154,6 +154,20 @@ def code_provenance(evaluator: str | None = None) -> dict[str, Any]:
     return out
 
 
+#: Label for a verdict scored at a tier that cannot certify what it checks.
+SCREENING_TIER = "analytic-screening"
+
+
+def screening_tier(info: dict[str, Any]) -> str | None:
+    """The tier label a result must carry, or None for a certifying result.
+
+    An evaluator that reports ``certifies_band_coverage: False`` (t1-001's
+    analytic tier) produced a screening verdict: the design closes against
+    the declared model, which is not the same as a built board meeting it.
+    """
+    return SCREENING_TIER if info.get("certifies_band_coverage") is False else None
+
+
 def utc_stamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
@@ -199,6 +213,12 @@ class RunRecord:
     #: filesystem tool referencing a tasks/*/reference/ path. A flag for
     #: review, not a verdict.
     integrity: str = "unknown"
+    #: "analytic-screening" when the evaluator's tier cannot certify its
+    #: verdict (see screening_tier); None for a certifying result.
+    tier: str | None = None
+    #: Non-gating scores the evaluator reports (info["score"]), e.g. t4-001's
+    #: count of requirements the design actually closes.
+    score: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)

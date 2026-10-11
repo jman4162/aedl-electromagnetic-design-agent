@@ -64,6 +64,7 @@ doc = {{
 if {write_submission!r}:
     (ws / "submission.json").write_text(json.dumps(doc))
 (ws / "transcript.jsonl").write_text(json.dumps({{"type": "tool_call"}}) + "\\n")
+{extra_code}
 """
 
 
@@ -85,6 +86,7 @@ def make_fake(
     deliverable_name: str = ws.SUBMISSION_NAME,
     write_submission: bool = True,
     deliverables: list[str] | None = None,
+    extra_code: str = "",
 ) -> Path:
     fake = tmp_path / "bin" / "edgearray"
     fake.parent.mkdir(parents=True, exist_ok=True)
@@ -95,6 +97,7 @@ def make_fake(
             deliverable_name=deliverable_name,
             write_submission=write_submission,
             deliverables=deliverables or [],
+            extra_code=extra_code,
         )
     )
     fake.chmod(0o755)
@@ -119,7 +122,7 @@ def test_adapter_is_registered():
 def test_command_line(spec, tmp_path, monkeypatch):
     monkeypatch.delenv(ENV_BIN, raising=False)
     work = ws.materialize(spec, isolation="inplace", parent=tmp_path)
-    adapter = EdgeArrayAdapter(model="ollama/qwen3.5:9b", baseline="b2")
+    adapter = EdgeArrayAdapter(model="ollama/qwen3.5:9b", baseline="b2", budget_s=600)
     assert adapter.build_command(work) == [
         "edgearray",
         "agent",
@@ -134,6 +137,8 @@ def test_command_line(spec, tmp_path, monkeypatch):
         "b2",
         "--model",
         "ollama/qwen3.5:9b",
+        "--budget-s",
+        "600",
         "--approve-all",
     ]
 
@@ -200,3 +205,21 @@ def test_listed_deliverables_outside_the_workspace_are_refused(
     assert any("escape.txt" in w for w in warnings)
     assert any("notes.md" in w for w in warnings)  # listed but never written
     assert not (tmp_path / "escape.txt").exists()
+
+
+def test_deliverables_containing_symlinks_are_refused(spec, reference_npz, tmp_path, monkeypatch):
+    """A listed directory holding a link to a file outside the workspace is
+    not copied: copytree would follow the link and import the target."""
+    secret = tmp_path / "outside-secret.txt"
+    secret.write_text("not for the agent")
+    code = (
+        "extras = ws / 'extras'\n"
+        "extras.mkdir()\n"
+        f"(extras / 'link.txt').symlink_to({str(secret)!r})\n"
+    )
+    fake = make_fake(tmp_path, reference_npz, deliverables=["extras"], extra_code=code)
+    monkeypatch.setenv(ENV_BIN, str(fake))
+    record, bundle = _run(spec, get_adapter("edgearray", baseline="b2"), tmp_path)
+    assert any("symlink" in w for w in record.usage["extra"]["warnings"])
+    assert "extras" not in record.usage["extra"]["deliverables_copied"]
+    assert not (bundle / "workspace" / "extras").exists()

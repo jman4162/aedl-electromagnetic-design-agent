@@ -4,8 +4,10 @@ Each baseline (b0 rules only through b4 full agent) runs ``--repeats`` times
 against one model endpoint through the ``edgearray`` adapter. Every attempt
 writes an ordinary run bundle under ``--runs-dir``. The script prints a
 markdown table (task, baseline, model, runs, pass rate, mean tokens, mean
-cost) and appends it to the leaderboard file only with
-``--write-leaderboard``.
+cost, plus a tier column for screening-tier verdicts and mean recomputed
+passes for tasks that report them) under a heading stating the approval
+policy and EdgeArray budget, and appends both to the leaderboard file only
+with ``--write-leaderboard``. b0 runs without a model and shows "-".
 
 Usage:
   python scripts/run_ladder.py --task t1-001 --model ollama/qwen3.5:9b
@@ -30,10 +32,8 @@ from aedl.harness.adapters.edgearray import BASELINES
 from aedl.harness.record import utc_stamp
 from aedl.spec import find_task
 
-HEADER = (
-    "| task | baseline | model | runs | pass rate | mean tokens | mean cost USD |\n"
-    "|---|---|---|---|---|---|---|"
-)
+#: Shown in the model column for b0, which runs EdgeArray's rules without an LLM.
+NO_MODEL = "-"
 
 
 def run_ladder(
@@ -46,12 +46,25 @@ def run_ladder(
     runs_dir: Path = Path("runs"),
     timeout_s: int = 900,
     instrumented: bool = True,
+    approve_all: bool = False,
+    budget_s: int | None = None,
 ) -> list[dict[str, Any]]:
-    """Run every (baseline, repeat) and return one row per attempt."""
+    """Run every (baseline, repeat) and return one row per attempt.
+
+    Every baseline gets the same approval policy and the same EdgeArray
+    budget, so the rows differ only in what the baseline enables.
+    """
     spec = find_task(tasks_dir, task_id)
     rows: list[dict[str, Any]] = []
     for baseline in baselines:
-        adapter = get_adapter("edgearray", model=model, baseline=baseline)
+        uses_model = baseline != "b0"
+        adapter = get_adapter(
+            "edgearray",
+            model=model if uses_model else None,
+            baseline=baseline,
+            approve_all=approve_all,
+            budget_s=budget_s,
+        )
         for attempt in range(1, repeats + 1):
             record, bundle = run_task(
                 spec, adapter, runs_dir=runs_dir, timeout_s=timeout_s, instrumented=instrumented
@@ -62,9 +75,11 @@ def run_ladder(
                 {
                     "task": spec.id,
                     "baseline": baseline,
-                    "model": model,
+                    "model": model if uses_model else NO_MODEL,
                     "attempt": attempt,
                     "status": record.status,
+                    "tier": record.tier,
+                    "recomputed_passes": record.score.get("recomputed_passes"),
                     "tokens": sum(t for t in tokens if isinstance(t, int))
                     if any(isinstance(t, int) for t in tokens)
                     else None,
@@ -82,20 +97,50 @@ def _mean(values: list[Any]) -> float | None:
 
 
 def ladder_table(rows: list[dict[str, Any]]) -> str:
+    """One row per (task, baseline, model).
+
+    A tier column appears when any run was scored at a screening tier, and a
+    mean-recomputed-passes column when any task reports that score (t4-001).
+    """
+    tiers = any(r.get("tier") for r in rows)
+    passes = any(r.get("recomputed_passes") is not None for r in rows)
+    columns = ["task", "baseline", "model", "runs", "pass rate"]
+    columns += ["tier"] if tiers else []
+    columns += ["mean recomputed passes"] if passes else []
+    columns += ["mean tokens", "mean cost USD"]
+    lines = ["| " + " | ".join(columns) + " |", "|" + "---|" * len(columns)]
+
     groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
     for row in rows:
         groups.setdefault((row["task"], row["baseline"], row["model"]), []).append(row)
-    lines = [HEADER]
     for (task, baseline, model), group in groups.items():
         passed = sum(r["status"] == "pass" for r in group)
+        cells = [task, baseline, model, str(len(group)), f"{passed / len(group):.0%}"]
+        if tiers:
+            labels = sorted({str(r["tier"]) for r in group if r.get("tier")})
+            cells.append(", ".join(labels) or "—")
+        if passes:
+            mean_passes = _mean([r.get("recomputed_passes") for r in group])
+            cells.append("—" if mean_passes is None else f"{mean_passes:.1f}")
         tokens = _mean([r["tokens"] for r in group])
         cost = _mean([r["cost_usd"] for r in group])
-        lines.append(
-            f"| {task} | {baseline} | {model} | {len(group)} | {passed / len(group):.0%} | "
-            f"{'—' if tokens is None else f'{tokens:,.0f}'} | "
-            f"{'—' if cost is None else f'{cost:.4f}'} |"
-        )
+        cells.append("—" if tokens is None else f"{tokens:,.0f}")
+        cells.append("—" if cost is None else f"{cost:.4f}")
+        lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines)
+
+
+def ladder_heading(task: str, model: str, approve_all: bool, budget_s: int | None) -> str:
+    """The leaderboard heading, stating the run conditions shared by every row."""
+    approvals = (
+        "all approved (--approve-all)" if approve_all else "all rejected (EdgeArray default)"
+    )
+    budget = f"{budget_s} s" if budget_s is not None else "EdgeArray default"
+    return (
+        f"## EdgeArray baseline ladder: {task}, {model} ({utc_stamp()})\n\n"
+        f"Approvals: {approvals}. EdgeArray budget per attempt: {budget}. "
+        f"b0 uses no model.\n"
+    )
 
 
 def _baselines(text: str) -> tuple[str, ...]:
@@ -116,6 +161,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--runs-dir", type=Path, default=Path("runs"))
     parser.add_argument("--timeout", type=int, default=900, help="per attempt, seconds")
     parser.add_argument("--no-instrument", action="store_true")
+    parser.add_argument(
+        "--approve-all",
+        action="store_true",
+        help="pass --approve-all to EdgeArray (default: its approvals are rejected)",
+    )
+    parser.add_argument(
+        "--budget-s",
+        type=int,
+        default=None,
+        help="EdgeArray --budget-s, the same for every baseline",
+    )
     parser.add_argument("--leaderboard", type=Path, default=Path("leaderboard.md"))
     parser.add_argument(
         "--write-leaderboard",
@@ -133,13 +189,16 @@ def main(argv: list[str] | None = None) -> int:
         runs_dir=args.runs_dir,
         timeout_s=args.timeout,
         instrumented=not args.no_instrument,
+        approve_all=args.approve_all,
+        budget_s=args.budget_s,
     )
+    heading = ladder_heading(args.task, args.model, args.approve_all, args.budget_s)
     table = ladder_table(rows)
+    print(heading)
     print(table)
     if args.write_leaderboard:
-        heading = f"\n## EdgeArray baseline ladder: {args.task}, {args.model} ({utc_stamp()})\n\n"
         with args.leaderboard.open("a") as fh:
-            fh.write(heading + table + "\n")
+            fh.write("\n" + heading + "\n" + table + "\n")
         print(f"appended to {args.leaderboard}", file=sys.stderr)
     return 0
 
