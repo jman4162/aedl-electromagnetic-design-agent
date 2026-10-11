@@ -60,7 +60,7 @@ reference solutions, never in scoring).
 - `src/aedl/harness/`: the agent harness. `workspace.py` materializes what the
   agent sees (task.yaml + generated BRIEF.md, never `reference/`, by default in a
   tmpdir outside the repo). `adapter.py` is the protocol + registry, mirroring
-  `registry.py`; adapters are `claude_cli`, `command`, `mock`. `instrument.py`
+  `registry.py`; adapters are `claude_cli`, `command`, `edgearray`, `mock`. `instrument.py`
   counts physics-model calls by fidelity tier by injecting a `sitecustomize.py` on
   the child's PYTHONPATH. `run.py` orchestrates and always writes a bundle in a
   `finally`. `report.py` renders the leaderboard.

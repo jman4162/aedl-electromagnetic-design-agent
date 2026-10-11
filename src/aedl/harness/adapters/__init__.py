@@ -1,1 +1,1 @@
-from aedl.harness.adapters import claude_cli, command, mock  # noqa: F401
+from aedl.harness.adapters import claude_cli, command, edgearray, mock  # noqa: F401
