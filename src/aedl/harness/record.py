@@ -26,6 +26,7 @@ TRACKED_PACKAGES = (
     "numpy",
     "scipy",
     "edgefem",
+    "antenna-cad",
 )
 
 

@@ -1,0 +1,10 @@
+design:
+  name: t1_001_reference
+requirements:
+  center_frequency: 28.67 GHz
+  impedance: 70 ohm
+  substrate: RO4350B
+  substrate_height: 0.508 mm
+  polarization: linear
+element:
+  type: rectangular_patch

@@ -1,0 +1,81 @@
+id: t1-001
+tier: 1
+title: 28 GHz inset-fed microstrip patch on RO4350B, 27.5-28.5 GHz match in a 6 mm footprint
+summary: >
+  Design a linearly polarized, inset-fed rectangular microstrip patch on
+  Rogers RO4350B that keeps |S11| below -10 dB across 27.5-28.5 GHz with
+  the patch and its feed line inside a 6 mm x 6 mm footprint. You submit
+  design intent, not geometry: the evaluator synthesizes the patch, the
+  inset feed, and the board from your spec with antenna-cad, then scores
+  what that geometry does. The laminate thickness is yours to choose from
+  the stock list; the board shop's default is 0.254 mm. Bandwidth, the
+  board margin antenna-cad leaves around the patch, and where the patch
+  actually resonates pull against each other.
+
+context:
+  band_ghz: [27.5, 28.5]
+  system_impedance_ohm: 50.0
+  substrate:
+    name: RO4350B
+    eps_r: 3.66
+    tan_delta: 0.0037
+    default_height_mm: 0.254
+    stock_heights_mm: [0.101, 0.168, 0.254, 0.338, 0.422, 0.508, 0.762, 1.524]
+  conductor:
+    sigma_s_per_m: 5.8e7
+  feed: inset microstrip line from the board edge (antenna-cad 0.2 synthesizes inset feeds only)
+  footprint_mm_max: 6.0
+  synthesis: antenna-cad 0.2 DesignSpec (RectangularPatch.synthesize, then to_design)
+
+deliverable:
+  filename: design.yaml
+  format: yaml
+  description: >
+    An antenna-cad DesignSpec YAML named design.yaml with exactly these
+    sections. design: {name}. requirements: {center_frequency, impedance,
+    substrate, substrate_height, polarization}, with quantities as strings
+    carrying units (for example "28 GHz", "50 ohm", "0.254 mm");
+    substrate must be RO4350B, substrate_height one of the stock thicknesses,
+    polarization linear. element: {type: rectangular_patch}. An optional
+    acceptance section is accepted and ignored. No array section, and no
+    geometry: any key outside this list is an error. center_frequency and
+    impedance are synthesis targets, not claims; the evaluator never reads
+    them as the answer.
+  scoring_notes:
+    - >
+      The evaluator synthesizes the patch with antenna-cad from your spec and
+      computes the resonance and S11 from the synthesized dimensions with an
+      analytic cavity model (Hammerstad-Jensen microstrip, Kirschning-Jansen
+      dispersion, Balanis slot conductances and quality factors, cos^4 inset
+      taper), referenced to a 50 ohm port at the board edge.
+    - >
+      S11 is checked on a grid across 27.5-28.5 GHz inclusive. The footprint
+      is the larger side of the bounding box of the top copper (patch, inset
+      notch, and feed line to the board edge). f_res is the TM010 resonance
+      of the synthesized patch.
+    - >
+      Results at this tier are labelled analytic: the model's resonance is
+      accurate to about +/-3 %, which is wider than the band. The result
+      reports how the in-band match moves across that band.
+    - >
+      numpy, scipy, and antenna_cad are installed in your environment.
+
+evaluator:
+  name: patch_element
+  params:
+    fidelity: analytic
+    n_band_points: 101
+
+requirements:
+  - id: s11-in-band
+    metric: s11_max_in_band_db
+    max: -10.0
+  - id: footprint
+    metric: footprint_mm
+    max: 6.0
+  - id: f-res-lo
+    metric: f_res_ghz
+    min: 27.5
+  - id: f-res-hi
+    metric: f_res_ghz
+    max: 28.5

@@ -44,6 +44,9 @@ systems = [
     "phased-array-systems>=0.10,<1.0",
     "opensatcom>=0.6,<1.0",
 ]
+# Tier-1 element tasks: antenna-cad synthesizes patch geometry from a
+# DesignSpec (and runs openEMS for the full-wave tier when installed).
+element = ["antenna-cad>=0.2,<0.3; python_version >= '3.11'"]
 # README figure generation, a maintainer task rather than a user requirement.
 # Pinned narrowly because matplotlib's SVG output is byte-stable only within a
 # minor version and CI compares committed figures byte for byte. The marker
@@ -64,6 +67,9 @@ packages = ["src/aedl"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers"
+markers = [
+    "requires_openems: needs openEMS (native bindings or the antenna-cad Docker runner); nightly",
+]
 # Import from src/ directly rather than relying on the editable install's .pth,
 # which is not honored on every platform.
 pythonpath = ["src"]
