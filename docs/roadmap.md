@@ -9,6 +9,15 @@ The harness is built (`aedl run`, `aedl report`, cost accounting, three
 adapters). The sequencing argument below was vindicated on the first real agent
 run; see **Calibration log**.
 
+2026-10-11: `t1-001` (Tier 1, scored by an analytic cavity model on antenna-cad
+geometry) and `t4-001` (Tier 4, a SysML-requirements design bundle re-verified
+with the Tier-1 and Tier-3 evaluators) were added, with an `edgearray` adapter
+and `scripts/run_ladder.py` for EdgeArray's b0 to b4 baselines. Two changes
+from the plan, both recorded in `docs/tasks/`: the cavity model showed that a
+patch on the planned 0.254 mm laminate cannot reach 1 GHz of -10 dB bandwidth,
+so laminate thickness became the agent's choice; and the t4-001 reference
+bundle is synthetic until EdgeArray's hero workflow can generate one.
+
 ## Sequencing decision: harness before tasks
 
 *Recorded as written before the harness existed; the reasoning is why it was

@@ -22,10 +22,12 @@ scientific-agent frameworks are a non-goal.
 
 ## Status
 
-Pre-release. What works today: the task format, evaluators for Tiers 2 and 3,
-three calibrated tasks (`t2-001`, `t3-001`, `t3-002`), and the agent harness (`aedl run` /
-`aedl report`) with cost accounting and optional MCP server attachment. What
-does not exist yet: Tier 1 and the remaining four Tier-2 tasks.
+Pre-release. What works today: the task format, evaluators for Tiers 1 to 4,
+five tasks (`t1-001`, `t2-001`, `t3-001`, `t3-002`, `t4-001`), and the agent harness (`aedl run` /
+`aedl report`) with cost accounting and optional MCP server attachment. `t1-001`
+is scored at an analytic tier that cannot certify band coverage, and
+`t4-001`'s reference bundle is synthetic; `docs/tasks/` explains both. What
+does not exist yet: a full-wave Tier-1 run and the remaining four Tier-2 tasks.
 `docs/roadmap.md` tracks the rest and records why each design decision was
 made.
 
@@ -33,11 +35,12 @@ Tiers:
 
 | tier | scope | physics | status |
 |---|---|---|---|
-| 1, element | unit cells, patch antennas | full-wave, [EdgeFEM](https://github.com/jman4162/EdgeFEM) | planned |
+| 1, element | unit cells, patch antennas | analytic cavity model on [antenna-cad](https://github.com/jman4162/antenna-cad) geometry; openEMS tier when installed | `t1-001` |
 | 2, aperture | array synthesis under hardware constraints | [phased-array-modeling](https://github.com/jman4162/Phased-Array-Antenna-Model) | `t2-001` |
 | 3, system | requirement-driven architecture trades | [phased-array-systems](https://github.com/jman4162/phased-array-systems), cross-checked by [phased-array-modeling](https://github.com/jman4162/Phased-Array-Antenna-Model), [opensatcom](https://github.com/jman4162/opensatcom), and a Monte Carlo CFAR simulator | `t3-001`, `t3-002` |
+| 4, cross-layer | SysML requirements to a verified design bundle and board | [sysml2kit](https://github.com/jman4162/sysml2kit) requirements, re-verified with the Tier-1 and Tier-3 evaluators | `t4-001` |
 
-`t3-001` is the cross-layer task: design a 28 GHz LEO terminal architecture
+`t3-001` was the first cross-layer task: design a 28 GHz LEO terminal architecture
 (aperture, taper, quantization, PA class, digitization) that closes the link
 worst-case over a held-out envelope of scan/rain/sky/failure conditions,
 under prime-power and unit-cost ceilings priced from a parts table. Pattern
@@ -128,8 +131,17 @@ A bundle is written even when the agent crashes, times out, or submits nothing,
 so every attempt stays in the record as scorable evidence.
 
 Other adapters: `--agent command --agent-command "my-agent {brief}"` runs any
-CLI (placeholders `{brief}`, `{task}`, `{submission}`), and `mock` is used by the
-tests.
+CLI (placeholders `{brief}`, `{task}`, `{submission}`), `edgearray` runs the
+EdgeArray Studio headless agent (`edgearray agent run`; executable from
+`$AEDL_EDGEARRAY_BIN`), and `mock` is used by the tests.
+`scripts/run_ladder.py` runs one task across EdgeArray's baselines b0 to b4,
+three attempts each by default, and prints pass rate, mean tokens and mean
+cost per baseline; `--write-leaderboard` appends that table to
+`leaderboard.md`.
+
+Optional extras: `systems` (Tier 3), `element` (antenna-cad, Tier 1) and
+`sysml` (sysml2kit and the RF model library, Tier 4). Tests for a tier skip
+when its extra is missing.
 
 **Run benchmarks in a sandbox.** The `claude` adapter passes
 `--permission-mode bypassPermissions` because a headless run has no TTY to answer
