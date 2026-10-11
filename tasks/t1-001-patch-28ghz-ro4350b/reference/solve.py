@@ -60,11 +60,10 @@ def solve(verbose: bool = False) -> dict[str, Any]:
     spec = load_task(TASK_DIR / "task.yaml")
     ctx = spec.context
     limit = float(ctx["footprint_mm_max"])
-    lo, hi = (float(x) for x in ctx["band_ghz"])
 
     def feasible_worst(doc: dict[str, Any]) -> float:
         m = score(spec, doc)
-        if m["footprint_mm"] > limit or not lo <= m["f_res_ghz"] <= hi:
+        if m["footprint_mm"] > limit:
             return float("inf")
         return m["s11_max_in_band_db"]
 
@@ -82,7 +81,7 @@ def solve(verbose: bool = False) -> dict[str, Any]:
             if best is None or worst < best[0]:
                 best = (worst, design_doc(fc, z, h_mm))
     if best is None:
-        raise SystemExit("no stock laminate meets the footprint with f_res in band")
+        raise SystemExit("no stock laminate meets the footprint")
     return best[1]
 
 

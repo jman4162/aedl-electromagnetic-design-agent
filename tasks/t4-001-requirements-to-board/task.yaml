@@ -28,8 +28,6 @@ context:
     - REQ-POWER
     - REQ-SLL
   element_requirement_ids:
-    - ELEM-F-RES-HI
-    - ELEM-F-RES-LO
     - ELEM-FOOTPRINT
     - ELEM-S11-IN-BAND
   # System verification context: identical to task t3-001 (a test enforces it).
@@ -100,7 +98,7 @@ deliverable:
   description: >
     A directory named submission/ containing bundle.json and the files it
     references by paths relative to submission/ (paths may not leave it).
-    bundle.json is an object with exactly these keys (schema is optional):
+    bundle.json is an object with these keys and no others (schema is optional):
     "schema": a version string of your choice;
     "architecture": the terminal architecture with the same sections and keys
     as task t3-001's architecture.yaml, i.e. array {nx, ny, dx_lambda,
@@ -111,13 +109,19 @@ deliverable:
     "element_spec": path to an antenna-cad DesignSpec YAML following task
     t1-001's rules (design, requirements, element sections; RO4350B, a stock
     thickness, linear polarization, no geometry);
-    "board": path to a .kicad_pcb file;
+    "board": path to a .kicad_pcb file, which must be the board antenna-cad's
+    KiCad emitter (antenna_cad.backends.kicad.write_kicad_project) writes for
+    your element spec;
+    "board_provenance": {"artifact_hash", "capability", "origin", "fidelity"}
+    for the board file, artifact_hash being that file's SHA-256;
     "verdicts": an object mapping every requirement id listed in the context
     to {"status": "pass" | "fail" | "unknown", "actual": number or null,
     "unit": string or null, "provenance": {"artifact_hash", "capability",
     "origin", "fidelity"}}. artifact_hash is a SHA-256 hex digest, optionally
     prefixed "sha256:"; capability names the tool or function that produced
     the number; origin and fidelity come from the vocabularies in the context.
+    Every pass or fail verdict needs a numeric actual; only an "unknown"
+    verdict may leave actual null.
   scoring_notes:
     - >
       The system requirements are read from the SysML model and re-verified
@@ -127,17 +131,25 @@ deliverable:
       integration, the link recomputed independently with opensatcom.
     - >
       The element requirements are task t1-001's (|S11| <= -10 dB over
-      27.5-28.5 GHz, footprint <= 6 mm, resonance in band), re-verified from
-      your element spec at t1-001's analytic tier, and reported here as
-      ELEM-<t1-001 id in capitals>.
+      27.5-28.5 GHz, footprint <= 6 mm), re-verified from your element spec
+      at t1-001's analytic tier, and reported here as ELEM-<t1-001 id in
+      capitals>. That tier cannot certify band coverage, so ELEM-S11-IN-BAND
+      is recomputed as "unknown". An "unknown" verdict agrees with it; a pass
+      or fail verdict agrees only if it equals the analytic screening result
+      and its provenance says fidelity analytic.
     - >
       verdict_agreement counts a requirement as agreeing when your status
-      equals the recomputed status; a missing verdict disagrees.
-      provenance_completeness is the fraction of verdicts with a numeric
-      actual whose provenance record is complete and well formed. board_valid
-      checks that the board parses as one (kicad_pcb ...) S-expression with
-      version and generator entries. The number of requirements your design
-      actually closes is reported as a score, not a gate.
+      equals the recomputed status (with the unknown rule above); a missing
+      verdict disagrees. actual_agreement counts your actual as agreeing when
+      it is within the tolerance below of the recomputed value: 0.1 dB for
+      dB metrics, 1 % for watts and dollars, 0.005 for grating margin in
+      wavelengths, 0.01 mm for the footprint. provenance_completeness covers
+      every requirement and verdict: a missing verdict or a pass/fail verdict
+      without a number is incomplete. board_valid checks that the board parses
+      as one (kicad_pcb ...) S-expression with version and generator entries,
+      that board_provenance carries its SHA-256, and that it matches what
+      antenna-cad emits for your element spec. The number of requirements
+      your design closes is reported as a score, not a gate.
     - >
       numpy, phased_array, phased_array_systems, opensatcom, antenna_cad,
       sysml2kit, and sysml2kit_rf_library are installed in your environment.
@@ -148,10 +160,21 @@ evaluator:
     system_task: t3-001
     element_task: t1-001
     element_prefix: ELEM-
+    # Provisional: set for numbers produced with the same library versions
+    # AEDL scores with; recalibrate once a tool-generated bundle exists.
+    actual_tolerance_by_suffix:
+      _db: {abs: 0.1}
+      _w: {rel: 0.01}
+      _usd: {rel: 0.01}
+      _lambda: {abs: 0.005}
+      _mm: {abs: 0.01}
 
 requirements:
   - id: verdict-agreement
     metric: verdict_agreement
+    min: 0.9
+  - id: actual-agreement
+    metric: actual_agreement
     min: 0.9
   - id: provenance
     metric: provenance_completeness

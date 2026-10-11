@@ -51,12 +51,14 @@ deliverable:
     - >
       S11 is checked on a grid across 27.5-28.5 GHz inclusive. The footprint
       is the larger side of the bounding box of the top copper (patch, inset
-      notch, and feed line to the board edge). f_res is the TM010 resonance
-      of the synthesized patch.
+      notch, and feed line to the board edge). The TM010 resonance of the
+      synthesized patch is reported for information and is not a requirement.
     - >
-      Results at this tier are labelled analytic: the model's resonance is
-      accurate to about +/-3 %, which is wider than the band. The result
-      reports how the in-band match moves across that band.
+      Results at this tier are labelled analytic screening: a pass means the
+      design closes against this declared cavity model, not that a built
+      patch covers the band. The model's resonance is accurate to about
+      +/-3 %, which is wider than the band; the result reports how the
+      in-band match moves across that range.
     - >
       numpy, scipy, and antenna_cad are installed in your environment.
 
@@ -73,9 +75,3 @@ requirements:
   - id: footprint
     metric: footprint_mm
     max: 6.0
-  - id: f-res-lo
-    metric: f_res_ghz
-    min: 27.5
-  - id: f-res-hi
-    metric: f_res_ghz
-    max: 28.5

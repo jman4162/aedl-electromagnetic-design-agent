@@ -23,8 +23,8 @@ Metrics produced (requirements reference these by name):
   task's system impedance
 - ``footprint_mm``: the larger side of the top-copper bounding box (patch and
   feed line)
-- ``f_res_ghz``: TM010 resonance computed from geometry (analytic) or the
-  solver's resonance (openems)
+- ``f_res_ghz``: reported, not required by t1-001; TM010 resonance computed
+  from geometry (analytic) or the solver's resonance (openems)
 """
 
 from __future__ import annotations
@@ -302,6 +302,9 @@ def element_metrics(spec: TaskSpec, submission: Path) -> tuple[dict[str, float],
         {
             "fidelity": fidelity,
             "certifies_band_coverage": fidelity != "analytic",
+            # Metrics this tier reports but cannot certify against a built
+            # board; consumers (t4-001) treat verdicts on them as screening.
+            "screening_metrics": ["s11_max_in_band_db"] if fidelity == "analytic" else [],
             "design": doc,
             "design_content_hash": design.content_hash(),
             "footprint": extents,

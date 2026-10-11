@@ -7,10 +7,13 @@
   `tasks/t3-001-satcom-terminal-28ghz/reference/solve.py`;
 - `element/design.yaml`: a copy of `tasks/t1-001-patch-28ghz-ro4350b/reference/design.yaml`;
 - `board/patch.kicad_pcb`: antenna-cad 0.2's KiCad emitter run on that
-  element spec (its UUIDs are name-derived, so the file is reproducible);
+  element spec (its UUIDs are name-derived, so the file is reproducible and
+  the evaluator can regenerate it), with `board_provenance` carrying its
+  SHA-256;
 - `verdicts`: the t4-001 evaluator's own recomputation, with each number
   tagged by the SHA-256 of the architecture JSON or the element spec it came
-  from, origin `derived`, fidelity `analytic`.
+  from, origin `derived`, fidelity `analytic`. ELEM-S11-IN-BAND is
+  `unknown`, which is how the analytic tier recomputes it.
 
 Because the verdicts come from the evaluator, this bundle shows that the
 evaluator accepts a correct bundle and that every requirement is closable.

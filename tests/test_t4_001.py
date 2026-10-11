@@ -28,6 +28,7 @@ from aedl.evaluators import requirements_bundle as rb
 REPO = Path(__file__).resolve().parents[1]
 TASKS = REPO / "tasks"
 REFERENCE = TASKS / "t4-001-requirements-to-board" / "reference" / "submission"
+TOLERANCES = find_task(TASKS, "t4-001").evaluator_params["actual_tolerance_by_suffix"]
 
 SYSTEM_IDS = {
     "REQ-LINK-MARGIN",
@@ -39,7 +40,8 @@ SYSTEM_IDS = {
     "REQ-COST",
     "REQ-GRATING",
 }
-ELEMENT_IDS = {"ELEM-S11-IN-BAND", "ELEM-FOOTPRINT", "ELEM-F-RES-LO", "ELEM-F-RES-HI"}
+ELEMENT_IDS = {"ELEM-S11-IN-BAND", "ELEM-FOOTPRINT"}
+N = len(SYSTEM_IDS | ELEMENT_IDS)  # 10
 
 
 @pytest.fixture(scope="module")
@@ -79,8 +81,17 @@ def _bundle(path: Path) -> dict:
 
 
 def _score(path: Path, bundle: dict, recomputed) -> dict:
-    metrics, _ = rb.score(path, bundle, recomputed)
+    metrics, _ = rb.score(path, bundle, recomputed, tolerances=TOLERANCES)
     return metrics
+
+
+def _details(path: Path, bundle: dict, recomputed) -> dict:
+    _, details = rb.score(path, bundle, recomputed, tolerances=TOLERANCES)
+    return details
+
+
+def _save(path: Path, bundle: dict) -> None:
+    (path / "bundle.json").write_text(json.dumps(bundle))
 
 
 def _failures(result):
@@ -95,6 +106,7 @@ def test_task_loads_through_the_registry(spec):
     assert spec.evaluator == "requirements_bundle"
     assert {r.metric for r in spec.requirements} == {
         "verdict_agreement",
+        "actual_agreement",
         "provenance_completeness",
         "board_valid",
     }
@@ -113,7 +125,7 @@ def test_context_mirrors_the_system_and_element_tasks(spec):
 def test_requirement_ids_in_context_match_the_sources(spec, recomputed):
     assert set(spec.context["system_requirement_ids"]) == SYSTEM_IDS
     assert set(spec.context["element_requirement_ids"]) == ELEMENT_IDS
-    assert set(recomputed) == SYSTEM_IDS | ELEMENT_IDS
+    assert set(recomputed.requirements) == SYSTEM_IDS | ELEMENT_IDS
 
 
 # --- reference -----------------------------------------------------------------
@@ -123,17 +135,23 @@ def test_reference_passes(reference_result):
     assert reference_result.passed, _failures(reference_result)
 
 
-def test_reference_closes_every_requirement_on_recompute(reference_result):
+def test_reference_scores_on_recompute(reference_result):
     metrics = reference_result.info["metrics"]
-    assert metrics["recomputed_pass_count"] == 12
+    # Nine certified passes; the in-band S11 is unknown at the analytic tier.
+    assert metrics["recomputed_pass_count"] == 9
     assert metrics["verdict_agreement"] == 1.0
+    assert metrics["actual_agreement"] == 1.0
     assert metrics["provenance_completeness"] == 1.0
     assert metrics["board_valid"] == 1.0
 
 
 def test_pass_count_is_reported_not_gated(spec, reference_result):
     assert "recomputed_pass_count" not in {r.metric for r in spec.requirements}
-    assert reference_result.info["score"]["recomputed_passes"] == 12
+    assert reference_result.info["score"] == {
+        "recomputed_passes": 9,
+        "unknown_at_this_tier": 1,
+        "of": N,
+    }
 
 
 def test_determinism(spec, reference_dir, reference_result):
@@ -159,20 +177,20 @@ def _flip(bundle: dict, *ids: str) -> dict:
 
 def test_one_wrong_verdict_is_tolerated(bundle_copy, recomputed):
     metrics = _score(bundle_copy, _flip(_bundle(bundle_copy), "REQ-POWER"), recomputed)
-    assert metrics["verdict_agreement"] == pytest.approx(11 / 12)
+    assert metrics["verdict_agreement"] == pytest.approx(9 / N)
     assert metrics["verdict_agreement"] >= 0.9
 
 
 def test_two_wrong_verdicts_fail_agreement(bundle_copy, recomputed):
     bundle = _flip(_bundle(bundle_copy), "REQ-POWER", "ELEM-FOOTPRINT")
-    assert _score(bundle_copy, bundle, recomputed)["verdict_agreement"] == pytest.approx(10 / 12)
+    assert _score(bundle_copy, bundle, recomputed)["verdict_agreement"] == pytest.approx(8 / N)
 
 
 def test_missing_verdicts_count_as_disagreement(bundle_copy, recomputed):
     bundle = _bundle(bundle_copy)
     del bundle["verdicts"]["REQ-SLL"]
-    del bundle["verdicts"]["ELEM-F-RES-HI"]
-    assert _score(bundle_copy, bundle, recomputed)["verdict_agreement"] == pytest.approx(10 / 12)
+    del bundle["verdicts"]["ELEM-FOOTPRINT"]
+    assert _score(bundle_copy, bundle, recomputed)["verdict_agreement"] == pytest.approx(8 / N)
 
 
 def test_changed_architecture_with_stale_verdicts_fails(spec, bundle_copy):
@@ -182,13 +200,81 @@ def test_changed_architecture_with_stale_verdicts_fails(spec, bundle_copy):
     bundle = _bundle(bundle_copy)
     bundle["architecture"]["rf"]["tx_power_w_per_elem"] = 0.5
     bundle["architecture"]["array"]["taper_type"] = "uniform"
-    (bundle_copy / "bundle.json").write_text(json.dumps(bundle))
+    _save(bundle_copy, bundle)
     result = get_evaluator(spec.evaluator)(spec, bundle_copy / "bundle.json")
-    assert "verdict-agreement" in _failures(result)
+    assert {"verdict-agreement", "actual-agreement"} <= _failures(result)
     rows = result.info["requirements"]
     assert rows["REQ-POWER"]["recomputed_status"] == "fail"
     assert rows["REQ-SLL"]["recomputed_status"] == "fail"
-    assert result.info["metrics"]["recomputed_pass_count"] <= 10
+    assert result.info["metrics"]["recomputed_pass_count"] <= 7
+
+
+# --- honest unknown ------------------------------------------------------------------
+
+
+def test_s11_band_coverage_is_unknown_at_the_analytic_tier(recomputed):
+    rec = recomputed.requirements["ELEM-S11-IN-BAND"]
+    assert rec.status == "unknown"
+    assert rec.screening_status == "pass"
+    assert rec.screening_fidelity == "analytic"
+    assert recomputed.requirements["ELEM-FOOTPRINT"].status == "pass"
+
+
+def _s11(bundle_dir: Path, recomputed, status: str, fidelity: str = "analytic") -> dict:
+    bundle = _bundle(bundle_dir)
+    verdict = bundle["verdicts"]["ELEM-S11-IN-BAND"]
+    verdict["status"] = status
+    verdict["provenance"]["fidelity"] = fidelity
+    return _details(bundle_dir, bundle, recomputed)["requirements"]["ELEM-S11-IN-BAND"]
+
+
+def test_unknown_agrees_with_unknown(bundle_copy, recomputed):
+    assert _s11(bundle_copy, recomputed, "unknown")["agrees"]
+
+
+def test_screening_verdict_labelled_analytic_agrees(bundle_copy, recomputed):
+    assert _s11(bundle_copy, recomputed, "pass", "analytic")["agrees"]
+
+
+def test_screening_verdict_claimed_as_full_wave_disagrees(bundle_copy, recomputed):
+    assert not _s11(bundle_copy, recomputed, "pass", "fullwave_open")["agrees"]
+
+
+def test_verdict_contradicting_the_screen_disagrees(bundle_copy, recomputed):
+    assert not _s11(bundle_copy, recomputed, "fail", "analytic")["agrees"]
+
+
+def test_unknown_on_a_certifiable_requirement_disagrees(bundle_copy, recomputed):
+    bundle = _bundle(bundle_copy)
+    bundle["verdicts"]["REQ-POWER"]["status"] = "unknown"
+    rows = _details(bundle_copy, bundle, recomputed)["requirements"]
+    assert not rows["REQ-POWER"]["agrees"]
+
+
+# --- actual agreement ----------------------------------------------------------------
+
+
+def test_one_number_off_is_tolerated_two_are_not(bundle_copy, recomputed):
+    bundle = _bundle(bundle_copy)
+    bundle["verdicts"]["REQ-LINK-MARGIN"]["actual"] += 1.0  # 1 dB, tolerance 0.1 dB
+    assert _score(bundle_copy, bundle, recomputed)["actual_agreement"] == pytest.approx(9 / N)
+    bundle["verdicts"]["REQ-POWER"]["actual"] *= 1.05  # 5 %, tolerance 1 %
+    assert _score(bundle_copy, bundle, recomputed)["actual_agreement"] == pytest.approx(8 / N)
+
+
+def test_numbers_within_tolerance_agree(bundle_copy, recomputed):
+    bundle = _bundle(bundle_copy)
+    bundle["verdicts"]["REQ-LINK-MARGIN"]["actual"] += 0.05
+    bundle["verdicts"]["REQ-COST"]["actual"] *= 1.005
+    assert _score(bundle_copy, bundle, recomputed)["actual_agreement"] == 1.0
+
+
+def test_null_actual_agrees_only_on_an_unknown_requirement(bundle_copy, recomputed):
+    bundle = _bundle(bundle_copy)
+    bundle["verdicts"]["ELEM-S11-IN-BAND"]["actual"] = None
+    assert _score(bundle_copy, bundle, recomputed)["actual_agreement"] == 1.0
+    bundle["verdicts"]["REQ-SLL"]["actual"] = None
+    assert _score(bundle_copy, bundle, recomputed)["actual_agreement"] == pytest.approx(9 / N)
 
 
 # --- provenance --------------------------------------------------------------------
@@ -198,7 +284,7 @@ def test_one_missing_provenance_record_fails_completeness(bundle_copy, recompute
     bundle = _bundle(bundle_copy)
     del bundle["verdicts"]["REQ-COST"]["provenance"]
     metrics = _score(bundle_copy, bundle, recomputed)
-    assert metrics["provenance_completeness"] == pytest.approx(11 / 12)
+    assert metrics["provenance_completeness"] == pytest.approx(9 / N)
     assert metrics["provenance_completeness"] < 0.95
 
 
@@ -225,11 +311,30 @@ def test_both_hash_spellings_are_accepted(bundle_copy, recomputed):
     assert _score(bundle_copy, bundle, recomputed)["provenance_completeness"] == 1.0
 
 
-def test_verdict_without_a_number_needs_no_provenance(bundle_copy, recomputed):
+def test_pass_verdict_without_a_number_is_incomplete(bundle_copy, recomputed):
+    """Nulling the number cannot shrink the denominator."""
     bundle = _bundle(bundle_copy)
     bundle["verdicts"]["REQ-COST"]["actual"] = None
     del bundle["verdicts"]["REQ-COST"]["provenance"]
+    assert _score(bundle_copy, bundle, recomputed)["provenance_completeness"] == pytest.approx(
+        9 / N
+    )
+
+
+def test_unknown_verdict_without_a_number_is_accounted_for(bundle_copy, recomputed):
+    bundle = _bundle(bundle_copy)
+    verdict = bundle["verdicts"]["ELEM-S11-IN-BAND"]
+    verdict.update(status="unknown", actual=None)
+    del verdict["provenance"]
     assert _score(bundle_copy, bundle, recomputed)["provenance_completeness"] == 1.0
+
+
+def test_missing_verdict_is_incomplete_provenance(bundle_copy, recomputed):
+    bundle = _bundle(bundle_copy)
+    del bundle["verdicts"]["REQ-GRATING"]
+    assert _score(bundle_copy, bundle, recomputed)["provenance_completeness"] == pytest.approx(
+        9 / N
+    )
 
 
 # --- board -------------------------------------------------------------------------
@@ -244,10 +349,51 @@ def test_reference_board_parses(bundle_copy):
     assert ok, reason
 
 
+def test_reference_board_matches_regeneration(bundle_copy, recomputed):
+    details = _details(bundle_copy, _bundle(bundle_copy), recomputed)["board"]
+    assert details["valid"], details
+    assert details["shipped_sha256"] == recomputed.board_sha256
+
+
 def test_truncated_board_is_invalid(bundle_copy, recomputed):
     board = _board_path(bundle_copy)
     board.write_text(board.read_text()[:-200])
     assert _score(bundle_copy, _bundle(bundle_copy), recomputed)["board_valid"] == 0.0
+
+
+def _rehash_board(bundle_dir: Path) -> dict:
+    """The bundle with board_provenance updated to the board file now on disk."""
+    import hashlib
+
+    bundle = _bundle(bundle_dir)
+    digest = hashlib.sha256(_board_path(bundle_dir).read_bytes()).hexdigest()
+    bundle["board_provenance"]["artifact_hash"] = "sha256:" + digest
+    return bundle
+
+
+def test_edited_board_with_honest_hash_fails_regeneration(bundle_copy, recomputed):
+    """A well-formed board that is not the one the element spec produces."""
+    board = _board_path(bundle_copy)
+    board.write_text(board.read_text().replace('(paper "A4")', '(paper "A3")'))
+    bundle = _rehash_board(bundle_copy)
+    details = _details(bundle_copy, bundle, recomputed)["board"]
+    assert not details["valid"]
+    assert details["provenance"] == "ok"
+    assert "antenna-cad" in details["regeneration"]
+
+
+def test_board_hash_must_match_the_shipped_file(bundle_copy, recomputed):
+    bundle = _bundle(bundle_copy)
+    bundle["board_provenance"]["artifact_hash"] = "0" * 64
+    details = _details(bundle_copy, bundle, recomputed)["board"]
+    assert not details["valid"]
+    assert "SHA-256" in details["provenance"]
+
+
+def test_board_without_provenance_is_invalid(bundle_copy, recomputed):
+    bundle = _bundle(bundle_copy)
+    del bundle["board_provenance"]
+    assert _score(bundle_copy, bundle, recomputed)["board_valid"] == 0.0
 
 
 @pytest.mark.parametrize(
@@ -284,13 +430,52 @@ def test_board_path_checks(bundle_copy, rel, reason):
     assert reason in why
 
 
+# --- the degenerate bundle -------------------------------------------------------------
+
+
+def test_degenerate_bundle_fails(spec, bundle_copy, recomputed):
+    """The review's shortcut: a one-line board, one fabricated provenance
+    record, and statuses copied from a recompute with every number nulled.
+    It may agree on verdicts; it must fail everything else."""
+    import hashlib
+
+    board = _board_path(bundle_copy)
+    board.write_text('(kicad_pcb (version 20240108) (generator "x"))\n')
+    bundle = _bundle(bundle_copy)
+    bundle["board_provenance"] = {
+        "artifact_hash": hashlib.sha256(board.read_bytes()).hexdigest(),
+        "capability": "made.up",
+        "origin": "derived",
+        "fidelity": "analytic",
+    }
+    verdicts = {}
+    for i, (rid, rec) in enumerate(sorted(recomputed.requirements.items())):
+        verdicts[rid] = {"status": rec.status, "actual": None, "unit": None}
+        if i == 0:
+            verdicts[rid]["provenance"] = {
+                "artifact_hash": "f" * 64,
+                "capability": "made.up",
+                "origin": "derived",
+                "fidelity": "analytic",
+            }
+    bundle["verdicts"] = verdicts
+    _save(bundle_copy, bundle)
+
+    result = get_evaluator(spec.evaluator)(spec, bundle_copy / "bundle.json")
+    assert not result.passed
+    assert {"actual-agreement", "provenance", "board"} <= _failures(result)
+    metrics = result.info["metrics"]
+    assert metrics["provenance_completeness"] == pytest.approx(1 / N)  # the unknown S11 only
+    assert metrics["actual_agreement"] == pytest.approx(1 / N)
+
+
 # --- malformed bundles ---------------------------------------------------------------
 
 
 def test_unknown_bundle_keys_rejected(bundle_copy):
     bundle = _bundle(bundle_copy)
     bundle["geometry"] = {}
-    (bundle_copy / "bundle.json").write_text(json.dumps(bundle))
+    _save(bundle_copy, bundle)
     with pytest.raises(ValueError, match="unknown keys"):
         rb.load_bundle(bundle_copy / "bundle.json")
 
@@ -298,7 +483,7 @@ def test_unknown_bundle_keys_rejected(bundle_copy):
 def test_bad_status_rejected(bundle_copy):
     bundle = _bundle(bundle_copy)
     bundle["verdicts"]["REQ-SLL"]["status"] = "probably"
-    (bundle_copy / "bundle.json").write_text(json.dumps(bundle))
+    _save(bundle_copy, bundle)
     with pytest.raises(ValueError, match="status"):
         rb.load_bundle(bundle_copy / "bundle.json")
 

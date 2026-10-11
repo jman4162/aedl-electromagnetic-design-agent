@@ -5,11 +5,16 @@ The traps, each verified numerically before the thresholds were frozen
 (docs/tasks/t1-001.md):
 
 - the textbook design (the 0.254 mm default laminate, center frequency
-  28 GHz, 50 ohm) misses the band twice: dispersion pulls the resonance
-  below 27.5 GHz, and the laminate is too thin for the bandwidth;
-- re-centring on the thin laminate fixes the resonance but not the bandwidth;
-- a thick laminate fixes the bandwidth and breaks the footprint;
-- the right laminate without dispersion pre-compensation lands below the band.
+  28 GHz, 50 ohm) misses the band: dispersion pulls the resonance below
+  27.5 GHz, and the laminate is too thin for the bandwidth;
+- re-centring on the thin laminate fixes the resonance but not the
+  bandwidth (s11-in-band alone fails);
+- a thick laminate fixes the bandwidth and breaks the footprint (footprint
+  alone fails);
+- the right laminate without dispersion pre-compensation misses the band.
+
+f_res is reported, not required: a resonance requirement would reject
+designs that meet the S11 spec and catch nothing s11-in-band does not.
 """
 
 from __future__ import annotations
@@ -86,7 +91,7 @@ def test_task_loads_through_the_registry(spec):
     assert spec.tier == 1
     assert spec.evaluator == "patch_element"
     assert get_evaluator(spec.evaluator) is not None
-    assert {r.id for r in spec.requirements} == {"s11-in-band", "footprint", "f-res-lo", "f-res-hi"}
+    assert {r.id for r in spec.requirements} == {"s11-in-band", "footprint"}
 
 
 def test_reference_passes(reference_result):
@@ -102,6 +107,7 @@ def test_reference_is_labelled_analytic_tier(reference_result):
     info = reference_result.info
     assert info["fidelity"] == "analytic"
     assert info["certifies_band_coverage"] is False
+    assert info["screening_metrics"] == ["s11_max_in_band_db"]
     assert info["uncertainty"]["f_res_fraction"] == pytest.approx(0.03)
     shifted = info["uncertainty"]["s11_max_in_band_db_with_f_res_shift"]
     assert set(shifted) == {"-3%", "-1%", "+1%", "+3%"}
@@ -129,7 +135,8 @@ def test_f_res_is_computed_from_geometry_not_claimed(reference_result, reference
 def test_textbook_design_fails(evaluate, tmp_path):
     result = evaluate(_design(28.0, 50.0, 0.254), tmp_path)
     assert not result.passed
-    assert {"s11-in-band", "f-res-lo"} <= _failures(result)
+    assert _failures(result) == {"s11-in-band"}
+    assert _metric(result, "f_res_ghz") < 27.5
 
 
 def test_thin_laminate_fails_bandwidth_even_when_centred(evaluate, tmp_path):
@@ -143,14 +150,21 @@ def test_thick_laminate_fails_footprint(evaluate, tmp_path):
     assert _metric(result, "s11_max_in_band_db") < -10.0
 
 
-def test_uncompensated_frequency_lands_below_the_band(evaluate, tmp_path):
+def test_uncompensated_frequency_misses_the_band(evaluate, tmp_path):
     result = evaluate(_design(28.0, 60.0, 0.508), tmp_path)
-    assert "f-res-lo" in _failures(result)
+    assert _failures(result) == {"s11-in-band"}
+    assert _metric(result, "f_res_ghz") < 27.5
 
 
-def test_high_resonance_fails_f_res_hi(evaluate, tmp_path):
+def test_overshoot_misses_the_band(evaluate, tmp_path):
     result = evaluate(_design(30.5, 60.0, 0.508), tmp_path)
-    assert "f-res-hi" in _failures(result)
+    assert _failures(result) == {"s11-in-band"}
+    assert _metric(result, "f_res_ghz") > 28.5
+
+
+def test_f_res_is_reported_but_not_required(spec, reference_result):
+    assert "f_res_ghz" not in {r.metric for r in spec.requirements}
+    assert "f_res_ghz" in reference_result.info["metrics"]
 
 
 @pytest.mark.parametrize(

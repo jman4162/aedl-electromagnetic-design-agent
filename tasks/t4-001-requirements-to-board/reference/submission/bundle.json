@@ -23,29 +23,13 @@
   },
   "element_spec": "element/design.yaml",
   "board": "board/patch.kicad_pcb",
+  "board_provenance": {
+    "artifact_hash": "sha256:b2ec9dd13937319f0f6d838b453fe923381450c826396bc79800c82c62b99b60",
+    "capability": "antenna_cad.backends.kicad.write_kicad_project",
+    "origin": "derived",
+    "fidelity": "analytic"
+  },
   "verdicts": {
-    "ELEM-F-RES-HI": {
-      "status": "pass",
-      "actual": 27.64972,
-      "unit": "GHz",
-      "provenance": {
-        "artifact_hash": "sha256:1c7cc592b9347a224f32b30b666b8123dd78aeff90e615458006723c932fcff6",
-        "capability": "aedl.evaluators.patch_element",
-        "origin": "derived",
-        "fidelity": "analytic"
-      }
-    },
-    "ELEM-F-RES-LO": {
-      "status": "pass",
-      "actual": 27.64972,
-      "unit": "GHz",
-      "provenance": {
-        "artifact_hash": "sha256:1c7cc592b9347a224f32b30b666b8123dd78aeff90e615458006723c932fcff6",
-        "capability": "aedl.evaluators.patch_element",
-        "origin": "derived",
-        "fidelity": "analytic"
-      }
-    },
     "ELEM-FOOTPRINT": {
       "status": "pass",
       "actual": 5.539852,
@@ -58,7 +42,7 @@
       }
     },
     "ELEM-S11-IN-BAND": {
-      "status": "pass",
+      "status": "unknown",
       "actual": -13.135383,
       "unit": "dB",
       "provenance": {
