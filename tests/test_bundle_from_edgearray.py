@@ -441,7 +441,7 @@ def test_symlinked_artifact_shard_directory_is_refused(mod, fixture_copy, tmp_pa
     moved = tmp_path / "shard"
     shard.rename(moved)
     shard.symlink_to(moved)
-    with pytest.raises(mod["ConversionError"], match="symlink|not found"):
+    with pytest.raises(mod["ConversionError"], match=r"symlink|not found"):
         mod["convert"](fixture_copy, PROJECT, tmp_path / "out")
 
 

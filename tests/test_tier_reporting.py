@@ -126,7 +126,7 @@ def test_summary_groups_by_baseline_as_well_as_task_and_model():
     ]
     lines = summary_table(recs).splitlines()
     assert "baseline" in lines[0]
-    body = [ln for ln in lines[2:]]
+    body = lines[2:]
     assert len(body) == 2
     b0 = next(ln for ln in body if "| b0 |" in ln)
     b2 = next(ln for ln in body if "| b2 |" in ln)

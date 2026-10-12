@@ -558,9 +558,7 @@ def test_latest_element_tie_goes_to_the_greater_artifact_id(tmp_path):
     """Equal instants written two ways: the choice does not depend on glob order."""
     project = make_project(
         tmp_path / "p",
-        _named_elements(
-            tmp_path, {"a": "2026-10-01T10:00:00Z", "b": "2026-10-01T10:00:00+00:00"}
-        ),
+        _named_elements(tmp_path, {"a": "2026-10-01T10:00:00Z", "b": "2026-10-01T10:00:00+00:00"}),
         head=None,
     )
     ids = {
