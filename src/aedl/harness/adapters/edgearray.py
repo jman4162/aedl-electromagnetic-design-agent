@@ -271,7 +271,11 @@ def _build_t4_001(data_dir: Path, project: str, workspace: Path) -> dict[str, An
         "source_revision": record["source_revision"],
         "filled_in": record["filled_in"],
         "assumed_verdicts": record["assumed_verdicts"],
-        "_warnings": [f"filled in: {note}" for note in record["filled_in"]],
+        "_warnings": [f"filled in: {note}" for note in record["filled_in"]]
+        + [
+            f"unparsed assumption warning from the hero report: {text}"
+            for text in record["unmatched_assumption_warnings"]
+        ],
     }
 
 
@@ -309,7 +313,13 @@ def _latest_element_payload(proj: Path) -> dict[str, Any]:
             manifest = json.loads(manifest_path.read_text())
         except (OSError, json.JSONDecodeError):
             continue
-        if isinstance(manifest, dict) and manifest.get("kind") == "element.design":
+        if (
+            isinstance(manifest, dict)
+            and manifest.get("kind") == "element.design"
+            and not manifest_path.parent.is_symlink()
+            and not manifest_path.is_symlink()
+            and not (manifest_path.parent / "payload.json").is_symlink()
+        ):
             candidates.append(
                 (
                     str(manifest.get("created_at", "")),
@@ -375,7 +385,7 @@ def _build_deliverable(
     except DeliverableError as exc:
         fail(f"could not build the {task_id} deliverable from {data_dir.name}: {exc}")
         return
-    except (KeyError, TypeError, ValueError, OSError) as exc:
+    except (KeyError, TypeError, AttributeError, ValueError, OSError) as exc:
         # A payload shaped differently from what the converter reads is the
         # agent's result, not a crash of the harness.
         fail(

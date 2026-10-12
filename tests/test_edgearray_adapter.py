@@ -55,7 +55,7 @@ data_dir = pathlib.Path(opts["data-dir"])
 assert not data_dir.exists(), data_dir
 (ws / "argv.json").write_text(json.dumps(argv))
 if {data_fixture!r}:
-    shutil.copytree({data_fixture!r}, data_dir / "projects" / opts["project"])
+    shutil.copytree({data_fixture!r}, data_dir / "projects" / opts["project"], symlinks=True)
 llm = opts.get("baseline", "b4") != "b0"
 doc = {{
     "final_text": "done",
@@ -373,17 +373,70 @@ def test_a_run_that_wrote_no_data_dir_is_a_recorded_error(t1, tmp_path, monkeypa
     assert "no project directory" in record.error
 
 
-def test_a_malformed_artifact_is_a_recorded_error_not_a_crash(t1, tmp_path, monkeypatch):
-    project = make_project(tmp_path / "p", [(T1_REFERENCE, "2026-10-01T00:00:00Z")], head=0)
+def _break_payloads(project: Path, replace) -> None:
     for payload in (project / "artifacts").glob("*/*/payload.json"):
-        doc = json.loads(payload.read_text())
-        del doc["design_spec"]
-        payload.write_text(json.dumps(doc))
+        payload.write_text(json.dumps(replace(json.loads(payload.read_text()))))
+
+
+@pytest.mark.parametrize(
+    "replace,expected",
+    [
+        (lambda doc: [], "expected an object"),
+        (lambda doc: {**doc, "design_spec": "a string"}, "design_spec"),
+    ],
+    ids=["payload-is-a-list", "design-spec-is-a-string"],
+)
+def test_wrong_type_json_keeps_usage_and_records_the_error(
+    t1, tmp_path, monkeypatch, replace, expected
+):
+    project = make_project(tmp_path / "p", [(T1_REFERENCE, "2026-10-01T00:00:00Z")], head=0)
+    _break_payloads(project, replace)
     monkeypatch.setenv(ENV_BIN, str(make_fake(tmp_path, project)))
     record, _ = _run(t1, get_adapter("edgearray", baseline="b2", model="m"), tmp_path)
     assert record.status == "no_submission"
-    assert "malformed artifact (KeyError" in record.error
-    assert record.usage["input_tokens"] == 1200  # usage survives
+    assert expected in record.error
+    assert record.usage["input_tokens"] == 1200
+
+
+def test_wrong_type_json_in_a_t4_data_dir_keeps_usage(t4, tmp_path, monkeypatch):
+    broken = tmp_path / "broken"
+    shutil.copytree(HERO_FIXTURE, broken)
+    (broken / "design" / "head.json").write_text("[]")
+    monkeypatch.setenv(ENV_BIN, str(make_fake(tmp_path, broken)))
+    record, _ = _run(t4, get_adapter("edgearray", baseline="b3", model="m"), tmp_path)
+    assert record.status == "no_submission"
+    assert "expected an object" in record.error
+    assert record.usage["output_tokens"] == 340
+
+
+@pytest.mark.parametrize("exc", [AttributeError("'list' has no attribute 'get'"), TypeError("x")])
+def test_unexpected_converter_exceptions_are_recorded_not_raised(
+    t1, reference_project, tmp_path, monkeypatch, exc
+):
+    """Backstop: a shape the converter does not check still cannot crash the run."""
+    from aedl.harness.adapters import edgearray as mod
+
+    def boom(data_dir, project, workspace):
+        raise exc
+
+    monkeypatch.setitem(mod.DELIVERABLE_BUILDERS, "t1-001", boom)
+    monkeypatch.setenv(ENV_BIN, str(make_fake(tmp_path, reference_project)))
+    record, _ = _run(t1, get_adapter("edgearray", baseline="b2", model="m"), tmp_path)
+    assert record.status == "no_submission"
+    assert f"malformed artifact ({type(exc).__name__}" in record.error
+    assert record.usage["input_tokens"] == 1200
+
+
+def test_a_symlinked_element_artifact_is_not_used_as_the_latest(t1, tmp_path, monkeypatch):
+    project = make_project(tmp_path / "p", [(T1_REFERENCE, "2026-10-01T00:00:00Z")], head=None)
+    (folder,) = [p.parent for p in (project / "artifacts").glob("*/*/manifest.json")]
+    moved = tmp_path / "outside"
+    folder.rename(moved)
+    folder.symlink_to(moved)
+    monkeypatch.setenv(ENV_BIN, str(make_fake(tmp_path, project)))
+    record, _ = _run(t1, get_adapter("edgearray", baseline="b2", model="m"), tmp_path)
+    assert record.status == "no_submission"
+    assert "no element.design artifact" in record.error
 
 
 def test_an_existing_deliverable_is_never_overwritten(t1, reference_project, tmp_path, monkeypatch):

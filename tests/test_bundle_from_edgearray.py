@@ -272,6 +272,92 @@ def test_board_file_outside_the_artifact_is_an_error(mod, fixture_copy, tmp_path
         mod["convert"](fixture_copy, PROJECT, tmp_path / "out")
 
 
+@pytest.mark.parametrize("kind_dir,name", [("ff", "payload.json"), ("ff", "manifest.json")])
+def test_wrong_type_json_is_a_conversion_error(mod, fixture_copy, tmp_path, kind_dir, name):
+    _artifact(fixture_copy, kind_dir, name).write_text("[]")
+    with pytest.raises(mod["ConversionError"], match="expected an object"):
+        mod["convert"](fixture_copy, PROJECT, tmp_path / "out")
+
+
+@pytest.mark.parametrize("field,value", [("design_spec", "a string"), ("design_spec", None)])
+def test_non_object_design_spec_is_a_conversion_error(mod, fixture_copy, tmp_path, field, value):
+    payload = _artifact(fixture_copy, "ff", "payload.json")
+    doc = json.loads(payload.read_text())
+    doc[field] = value
+    payload.write_text(json.dumps(doc))
+    with pytest.raises(mod["ConversionError"], match="design_spec"):
+        mod["convert"](fixture_copy, PROJECT, tmp_path / "out")
+
+
+def test_non_object_head_and_revision_nodes_are_conversion_errors(mod, fixture_copy, tmp_path):
+    head = fixture_copy / "projects" / PROJECT / "design" / "head.json"
+    head.write_text("[]")
+    with pytest.raises(mod["ConversionError"], match="expected an object"):
+        mod["convert"](fixture_copy, PROJECT, tmp_path / "out")
+
+
+def test_verdicts_that_are_not_objects_are_a_conversion_error(mod, fixture_copy, tmp_path):
+    payload = _artifact(fixture_copy, "e9", "payload.json")
+    doc = json.loads(payload.read_text())
+    doc["verdicts"] = ["REQ-SLL"]
+    payload.write_text(json.dumps(doc))
+    with pytest.raises(mod["ConversionError"], match="list of objects"):
+        mod["convert"](fixture_copy, PROJECT, tmp_path / "out")
+
+
+def test_symlinked_artifact_directory_is_refused(mod, fixture_copy, tmp_path):
+    folder = _artifact(fixture_copy, "ff", "payload.json").parent
+    moved = tmp_path / "elsewhere"
+    folder.rename(moved)
+    folder.symlink_to(moved)
+    with pytest.raises(mod["ConversionError"], match="not found"):
+        mod["convert"](fixture_copy, PROJECT, tmp_path / "out")
+
+
+def _reword(fixture_copy: Path, old_prefix: str, new_text: str) -> None:
+    payload = _artifact(fixture_copy, "e9", "payload.json")
+    doc = json.loads(payload.read_text())
+    doc["warnings"] = [new_text if w.startswith(old_prefix) else w for w in doc["warnings"]]
+    payload.write_text(json.dumps(doc))
+
+
+def test_a_reworded_assumption_warning_is_reported_and_still_labels_the_verdict(
+    mod, fixture_copy, tmp_path
+):
+    """The hero changes its wording. REQ-POWER's id is still in the text, so it
+    stays labelled assumed, and the warning is surfaced for a human."""
+    reworded = "REQ-POWER was computed from assumed values for transmit power"
+    _reword(fixture_copy, "REQ-POWER: checked by", reworded)
+    out = tmp_path / "out"
+    mod["convert"](fixture_copy, PROJECT, out)
+    assert _bundle(out)["verdicts"]["REQ-POWER"]["provenance"]["origin"] == "assumed"
+    record = json.loads((out / "conversion.json").read_text())
+    assert record["unmatched_assumption_warnings"] == [reworded]
+    assert record["assumed_verdicts"] == sorted(
+        ["REQ-GAIN-XCHECK", "REQ-GRATING", "REQ-POWER", "REQ-SLL"]
+    )
+
+
+def test_an_assumption_warning_without_ids_is_recorded_and_printed(
+    mod, fixture_copy, tmp_path, capsys
+):
+    reworded = "all system numbers rest on assumed inputs"
+    _reword(fixture_copy, "REQ-POWER: checked by", reworded)
+    out = tmp_path / "out"
+    code = mod["main"](["--data-dir", str(fixture_copy), "--project", PROJECT, "--out", str(out)])
+    assert code == 0
+    assert "unparsed assumption warning" in capsys.readouterr().err
+    record = json.loads((out / "conversion.json").read_text())
+    assert record["unmatched_assumption_warnings"] == [reworded]
+    # The ids cannot be parsed from this one, so REQ-POWER falls back to derived.
+    assert _bundle(out)["verdicts"]["REQ-POWER"]["provenance"]["origin"] == "derived"
+
+
+def test_the_committed_hero_run_has_no_unmatched_assumption_warnings(converted):
+    record = json.loads((converted / "conversion.json").read_text())
+    assert record["unmatched_assumption_warnings"] == []
+
+
 def test_unmapped_verdict_status_is_an_error(mod, fixture_copy, tmp_path):
     payload = _artifact(fixture_copy, "e9", "payload.json")
     doc = json.loads(payload.read_text())

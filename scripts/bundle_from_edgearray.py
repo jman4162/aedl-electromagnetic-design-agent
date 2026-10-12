@@ -83,6 +83,11 @@ element pattern exponent) and REQ-POWER (assumed transmit power, PA
 efficiency, noise figure and others). ``conversion.json`` lists them under
 ``assumed_verdicts``. Unverified verdicts carry no provenance.
 
+A warning that mentions "assumed" but does not match the form above is not
+ignored. It is listed under ``unmatched_assumption_warnings`` in
+``conversion.json`` and printed on stderr, and every verdict whose id appears
+in its text is labelled ``assumed`` as well.
+
 A verdict that is unverified or has no ``actual``/``engine`` gets
 ``provenance: null``. The hero's model has no element requirements, so
 ELEM-S11-IN-BAND and ELEM-FOOTPRINT are reported as ``unknown`` with a null
@@ -133,6 +138,17 @@ def _load_json(path: Path) -> Any:
         raise ConversionError(f"cannot read {path}: {exc}") from exc
 
 
+def _object(value: Any, what: str) -> dict[str, Any]:
+    """``value`` if it is a JSON object, else a ConversionError naming ``what``."""
+    if not isinstance(value, dict):
+        raise ConversionError(f"{what} is {type(value).__name__}, expected an object")
+    return value
+
+
+def _load_object(path: Path) -> dict[str, Any]:
+    return _object(_load_json(path), str(path))
+
+
 def project_dir(data_dir: Path, project: str) -> Path:
     path = data_dir / "projects" / project
     if not path.is_dir():
@@ -141,17 +157,17 @@ def project_dir(data_dir: Path, project: str) -> Path:
 
 
 def head_revision(proj: Path) -> dict[str, Any]:
-    rev = _load_json(proj / "design" / "head.json")["rev"]
+    rev = _load_object(proj / "design" / "head.json").get("rev")
     if not isinstance(rev, str) or not _ARTIFACT_ID.fullmatch(rev):
         raise ConversionError(f"head.json rev {rev!r} is not a 64-hex id")
-    return dict(_load_json(proj / "design" / "revisions" / f"{rev}.json"))
+    return _load_object(proj / "design" / "revisions" / f"{rev}.json")
 
 
 def artifact_dir(proj: Path, artifact_id: str) -> Path:
     if not _ARTIFACT_ID.fullmatch(artifact_id):
         raise ConversionError(f"artifact id {artifact_id!r} is not a 64-hex id")
     path = proj / "artifacts" / artifact_id[:2] / artifact_id
-    if not path.is_dir():
+    if path.is_symlink() or not path.is_dir():
         raise ConversionError(f"artifact {artifact_id} not found under {proj / 'artifacts'}")
     return path
 
@@ -160,13 +176,13 @@ def node_artifact(
     proj: Path, revision: dict[str, Any], node: str, kind: str
 ) -> tuple[str, Path, dict[str, Any], dict[str, Any]]:
     """(artifact id, directory, manifest, payload) of a revision node of the given kind."""
-    nodes = revision.get("nodes", {})
+    nodes = _object(revision.get("nodes", {}), "revision nodes")
     if node not in nodes:
         raise ConversionError(f"revision has no {node!r} node (nodes: {sorted(nodes)})")
-    artifact_id = str(nodes[node]["artifact"])
+    artifact_id = str(_object(nodes[node], f"revision node {node!r}").get("artifact"))
     directory = artifact_dir(proj, artifact_id)
-    manifest = _load_json(directory / "manifest.json")
-    payload = _load_json(directory / "payload.json")
+    manifest = _load_object(directory / "manifest.json")
+    payload = _load_object(directory / "payload.json")
     if manifest.get("kind") != kind or payload.get("kind") != kind:
         raise ConversionError(
             f"node {node!r} is {manifest.get('kind')!r}/{payload.get('kind')!r}, expected {kind!r}"
@@ -231,10 +247,11 @@ def convert_architecture(
 
 def element_yaml(payload: dict[str, Any]) -> str:
     """DesignSpec YAML text from an element.design payload."""
-    spec = payload["design_spec"]
+    spec = _object(payload.get("design_spec"), "element payload design_spec")
     if spec.get("array"):
         raise ConversionError("element design has an array section; t4-001 takes one element")
-    problem = {k: str(v).replace("Ω", "ohm") for k, v in spec["problem"].items()}
+    raw_problem = _object(spec.get("problem"), "element design_spec problem")
+    problem = {k: str(v).replace("Ω", "ohm") for k, v in raw_problem.items()}
     doc: dict[str, Any] = {
         "design": {"name": spec["name"]},
         "requirements": problem,
@@ -245,14 +262,27 @@ def element_yaml(payload: dict[str, Any]) -> str:
     return yaml.safe_dump(doc, sort_keys=False)
 
 
-def assumed_verdict_ids(warnings: list[Any]) -> set[str]:
-    """Requirement ids the hero's warnings say were checked on assumed inputs."""
+def assumed_verdict_ids(warnings: list[Any], verdict_ids: list[str]) -> tuple[set[str], list[str]]:
+    """Verdict ids to label ``assumed``, and the warnings the rule did not parse.
+
+    A warning matching ``_ASSUMED_WARNING`` names its ids exactly. A warning
+    that mentions "assumed" but does not match (the hero reworded it) is
+    returned in the second list, and every verdict whose id appears in its text
+    is labelled ``assumed`` too, so a rewording cannot turn an assumption into
+    ``derived`` silently. If no verdict id appears in it, the warning is only
+    recorded.
+    """
     ids: set[str] = set()
+    unmatched: list[str] = []
     for warning in warnings:
-        match = _ASSUMED_WARNING.match(str(warning))
+        text = str(warning)
+        match = _ASSUMED_WARNING.match(text)
         if match:
             ids.update(match.group("ids").split(", "))
-    return ids
+        elif "assum" in text.lower():
+            unmatched.append(text)
+            ids.update(vid for vid in verdict_ids if vid in text)
+    return ids, unmatched
 
 
 def _verdict(
@@ -326,9 +356,15 @@ def convert(
     shutil.copyfile(board_src, out_dir / board_rel)
     board_bytes = (out_dir / board_rel).read_bytes()
 
-    assumed = assumed_verdict_ids(report.get("warnings", []))
+    raw_verdicts = report.get("verdicts")
+    if not isinstance(raw_verdicts, list) or not all(isinstance(v, dict) for v in raw_verdicts):
+        raise ConversionError("verification report verdicts is not a list of objects")
+    raw_warnings = report.get("warnings", [])
+    if not isinstance(raw_warnings, list):
+        raise ConversionError("verification report warnings is not a list")
+    assumed, unmatched = assumed_verdict_ids(raw_warnings, [str(v["id"]) for v in raw_verdicts])
     verdicts: dict[str, Any] = {}
-    for raw in report["verdicts"]:
+    for raw in raw_verdicts:
         verdicts[str(raw["id"])] = _verdict(raw, report_id, vocab_fidelities, assumed)
     for rid in ELEMENT_REQUIREMENT_IDS:
         verdicts[rid] = {"status": "unknown", "actual": None, "unit": None, "provenance": None}
@@ -369,8 +405,9 @@ def convert(
         "assumed_verdicts": sorted(
             rid for rid, v in verdicts.items() if v["provenance"] and rid in assumed
         ),
+        "unmatched_assumption_warnings": unmatched,
         "element_requirements": ("not in the hero's model; reported as unknown with a null actual"),
-        "hero_warnings": list(report.get("warnings", [])),
+        "hero_warnings": list(raw_warnings),
     }
     (out_dir / "conversion.json").write_text(json.dumps(record, indent=2) + "\n")
     return bundle
@@ -390,6 +427,10 @@ def main(argv: list[str] | None = None) -> int:
     record = json.loads((args.out / "conversion.json").read_text())
     for note in record["filled_in"]:
         print(f"filled in: {note}", file=sys.stderr)
+    for text in record["unmatched_assumption_warnings"]:
+        print(
+            f"warning: unparsed assumption warning (see conversion.json): {text}", file=sys.stderr
+        )
     counts: dict[str, int] = {}
     for verdict in bundle["verdicts"].values():
         counts[verdict["status"]] = counts.get(verdict["status"], 0) + 1

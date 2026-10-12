@@ -31,6 +31,7 @@
     "REQ-POWER",
     "REQ-SLL"
   ],
+  "unmatched_assumption_warnings": [],
   "element_requirements": "not in the hero's model; reported as unknown with a null actual",
   "hero_warnings": [
     "REQ-COST (must) unverified: engine edgearray-system returned no numeric 'unit_cost_usd'",
