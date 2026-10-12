@@ -1,0 +1,36 @@
+{
+  "source_revision": "0bc6b4306361bc3005341721d6fc965421ca34522cc5315774e80ec4053c8d87",
+  "nodes": {
+    "architecture": "6c600de68e9b42a0a3cabe163ad6a12bfbb9e8f4699dacb6c46bb7aaaef88671",
+    "array": "d5057d4ced4450d274b5a81141dc2cb3928dd49615587de7b3230fedbfed7493",
+    "array:geometry": "8de8f3b654186828c1730d3561e6b84a2e8ecc384f10dffaa688538308b7afdd",
+    "board": "1134aeed319e737e8e50ef5446db375aaf897bec6e60508e8dcd15ccec5799ba",
+    "element": "ff8a7f8cc8dba968985b9f97c61dd957cec57cf07f2b5fcbb98b9a030690f11c",
+    "em_results:embedded_pattern": "cc87df50672f5a4dd93588d1ea619303f3dd1d6466701fb8ae67ace0614fe7f1",
+    "em_results:farfield": "ad87929c28efc581790e3e0f485c7566c0096fceb4e92b37651b0f13ba2117e5",
+    "em_results:sparams": "dc6a3145dcaca7fbae4ba327ad69364961f948b99e59e527d9956a1863d7384f",
+    "requirements": "13bf1cc1cdfa9cee87ac10f945e8daa5d26d2f5dfcbb69dbb164f760a14e974f",
+    "verification": "e98290148e27b67a0371db84da2a67b18b3cba58f4a877c8b8c2f84df020b761",
+    "verification:model": "0515b614a100e12c0b4ea6b584798f71bd93ff8a862f6611f0bc4b2ed47915f2"
+  },
+  "verification_report": "e98290148e27b67a0371db84da2a67b18b3cba58f4a877c8b8c2f84df020b761",
+  "board_artifact": "1134aeed319e737e8e50ef5446db375aaf897bec6e60508e8dcd15ccec5799ba",
+  "producer": "edgearray-workflows/hero@1.0.0",
+  "engine_versions": {
+    "architecture": "phased-array-systems@0.14.1",
+    "board": "antenna-cad 0.2.0",
+    "verification": "sysml2kit@0.4.0; edgearray-adapters-sysml@1.0.0"
+  },
+  "filled_in": [
+    "array.phase_bits=6: the hero models ideal phase shifters",
+    "digital.digitization_level=element and digital.adc_enob=12.0: PAS DigitalConfig defaults, used by the hero's study"
+  ],
+  "element_requirements": "not in the hero's model; reported as unknown with a null actual",
+  "hero_warnings": [
+    "REQ-COST (must) unverified: engine edgearray-system returned no numeric 'unit_cost_usd'",
+    "REQ-INDEP-LINK (must) unverified: no installed engine computes 'opensatcom_worst_case_margin_db'",
+    "REQ-LINK-MARGIN (must) unverified: no installed engine computes 'worst_case_link_margin_db'",
+    "REQ-GAIN-XCHECK, REQ-GRATING, REQ-SLL: checked by edgearray-array-envelope on assumed inputs (element_cos_q)",
+    "REQ-POWER: checked by edgearray-system on assumed inputs (tx_power_w_per_elem, pa_efficiency, noise_figure_db, required_snr_db, rx_antenna_gain_dbi, orbit_altitude_m, element_cos_q)"
+  ]
+}

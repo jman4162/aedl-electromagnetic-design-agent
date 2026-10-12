@@ -1,0 +1,38 @@
+{
+  "kind": "verification.report",
+  "schema_version": "1.0.0",
+  "producer": "edgearray-workflows/hero@1.0.0",
+  "engine_version": "sysml2kit@0.4.0; edgearray-adapters-sysml@1.0.0",
+  "input_hash": "359fde011a01cdb18f3c4ca7de123682d4b64bd73e4aec079807beaf7d0b02f8",
+  "parents": [
+    "13bf1cc1cdfa9cee87ac10f945e8daa5d26d2f5dfcbb69dbb164f760a14e974f",
+    "6c600de68e9b42a0a3cabe163ad6a12bfbb9e8f4699dacb6c46bb7aaaef88671",
+    "d5057d4ced4450d274b5a81141dc2cb3928dd49615587de7b3230fedbfed7493",
+    "dc6a3145dcaca7fbae4ba327ad69364961f948b99e59e527d9956a1863d7384f",
+    "ad87929c28efc581790e3e0f485c7566c0096fceb4e92b37651b0f13ba2117e5",
+    "cc87df50672f5a4dd93588d1ea619303f3dd1d6466701fb8ae67ace0614fe7f1"
+  ],
+  "trace_id": null,
+  "created_at": "2026-10-11T23:36:59.990574Z",
+  "env": {
+    "edgearray-core": "1.0.0",
+    "edgearray-adapters-pam": "1.0.0",
+    "edgearray-adapters-pas": "1.0.0",
+    "edgearray-adapters-edgefem": "1.0.0",
+    "edgearray-pack-satcom": "1.0.0",
+    "edgearray-pack-terrestrial": "1.0.0",
+    "edgearray-pack-radar": "1.0.0",
+    "edgearray-pack-sensing": "1.4.0"
+  },
+  "files": [
+    "bindings/edgearray/array_envelope.json",
+    "bindings/edgearray/system_study.json"
+  ],
+  "warnings": [
+    "REQ-COST (must) unverified: engine edgearray-system returned no numeric 'unit_cost_usd'",
+    "REQ-INDEP-LINK (must) unverified: no installed engine computes 'opensatcom_worst_case_margin_db'",
+    "REQ-LINK-MARGIN (must) unverified: no installed engine computes 'worst_case_link_margin_db'",
+    "REQ-GAIN-XCHECK, REQ-GRATING, REQ-SLL: checked by edgearray-array-envelope on assumed inputs (element_cos_q)",
+    "REQ-POWER: checked by edgearray-system on assumed inputs (tx_power_w_per_elem, pa_efficiency, noise_figure_db, required_snr_db, rx_antenna_gain_dbi, orbit_altitude_m, element_cos_q)"
+  ]
+}

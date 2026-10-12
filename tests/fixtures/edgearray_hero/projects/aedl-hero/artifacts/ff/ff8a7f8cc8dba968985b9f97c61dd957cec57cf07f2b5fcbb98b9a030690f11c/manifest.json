@@ -1,0 +1,24 @@
+{
+  "kind": "element.design",
+  "schema_version": "1.0.0",
+  "producer": "edgearray-workflows/hero@1.0.0",
+  "engine_version": "antenna-cad 0.2.0",
+  "input_hash": "541074161d9fbae0866aca745c06d04f073f0f8c73039259ec9a11641cc790b8",
+  "parents": [],
+  "trace_id": null,
+  "created_at": "2026-10-11T23:36:57.589398Z",
+  "env": {
+    "edgearray-core": "1.0.0",
+    "edgearray-adapters-pam": "1.0.0",
+    "edgearray-adapters-pas": "1.0.0",
+    "edgearray-adapters-edgefem": "1.0.0",
+    "edgearray-pack-satcom": "1.0.0",
+    "edgearray-pack-terrestrial": "1.0.0",
+    "edgearray-pack-radar": "1.0.0",
+    "edgearray-pack-sensing": "1.4.0"
+  },
+  "files": [
+    "design_ir.json"
+  ],
+  "warnings": []
+}

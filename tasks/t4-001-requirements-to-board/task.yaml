@@ -160,8 +160,11 @@ evaluator:
     system_task: t3-001
     element_task: t1-001
     element_prefix: ELEM-
-    # Provisional: set for numbers produced with the same library versions
-    # AEDL scores with; recalibrate once a tool-generated bundle exists.
+    # Rounding allowances for numbers produced with the library versions AEDL
+    # scores with. The EdgeArray hero bundle did not change them: its
+    # disagreements are 5 dB and 18 %, and library drift between environments
+    # (up to 2.5 dB on SLL) is handled by pinning, not by widening these.
+    # See docs/tasks/t4-001.md.
     actual_tolerance_by_suffix:
       _db: {abs: 0.1}
       _w: {rel: 0.01}

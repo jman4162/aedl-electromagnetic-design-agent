@@ -1,0 +1,29 @@
+{
+  "kind": "board.layout",
+  "schema_version": "1.0.0",
+  "producer": "edgearray-workflows/hero@1.0.0",
+  "engine_version": "antenna-cad 0.2.0",
+  "input_hash": "19486fbee1980b5fd146d70ae04f48f06d9caed3c03c8f1e6dcf367dfbf7b53b",
+  "parents": [
+    "b61fe54c0063a9f9ea141ae03210942644cf950df61f3de3b44ee2c90a2a7bbb"
+  ],
+  "trace_id": null,
+  "created_at": "2026-10-11T23:36:57.883750Z",
+  "env": {
+    "edgearray-core": "1.0.0",
+    "edgearray-adapters-pam": "1.0.0",
+    "edgearray-adapters-pas": "1.0.0",
+    "edgearray-adapters-edgefem": "1.0.0",
+    "edgearray-pack-satcom": "1.0.0",
+    "edgearray-pack-terrestrial": "1.0.0",
+    "edgearray-pack-radar": "1.0.0",
+    "edgearray-pack-sensing": "1.4.0"
+  },
+  "files": [
+    "design_ir.json",
+    "drc.json",
+    "hero_patch.kicad_pcb",
+    "hero_patch.kicad_pro"
+  ],
+  "warnings": []
+}

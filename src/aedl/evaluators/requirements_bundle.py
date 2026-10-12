@@ -43,8 +43,9 @@ Metrics produced:
   ``.kicad_pcb``, parses as a single ``(kicad_pcb ...)`` S-expression with
   ``version`` and ``generator`` children, carries a complete
   ``board_provenance`` whose hash is the shipped file's SHA-256, and is
-  byte-identical to the board antenna-cad emits for the submitted element
-  spec; else 0
+  byte-identical to a board antenna-cad emits for the submitted element
+  spec (straight from the synthesized design, or from that design after a
+  round trip through its stored IR file); else 0
 - ``recomputed_pass_count``: requirements the design closes at a certifying
   tier. A score, not a gate: the task asks for as many as possible.
 
@@ -111,6 +112,10 @@ class Recomputation:
     requirements: dict[str, Recomputed]
     #: SHA-256 of the board antenna-cad emits for the submitted element spec.
     board_sha256: str
+    #: SHA-256 of the board emitted from that design after an IR round trip
+    #: (``to_dict`` -> JSON -> ``from_dict``), which is how a flow that stores
+    #: the IR as a file emits it. Coordinates differ in the sixth decimal.
+    board_sha256_via_ir: str = ""
 
 
 def _check(op: str, threshold: float, actual: float) -> bool:
@@ -197,20 +202,34 @@ def _unit(metric: str) -> str | None:
     return None
 
 
-def regenerate_board_sha256(element_path: Path) -> str:
-    """SHA-256 of the board antenna-cad 0.2 emits for an element DesignSpec.
+def regenerate_board_sha256s(element_path: Path) -> tuple[str, str]:
+    """SHA-256 of the boards antenna-cad 0.2 emits for an element DesignSpec.
 
-    The emitter is deterministic: UUIDs are derived from the design name, and
-    the output depends only on the spec and the antenna-cad version (which it
-    writes into the file as generator_version).
+    Returns (direct, via IR). The emitter is deterministic: UUIDs are derived
+    from the design name, and the output depends only on the spec and the
+    antenna-cad version (which it writes into the file as generator_version).
+
+    A flow that stores the physical design as an IR file and emits the board
+    from that file gets polygons rounded to six decimals in the IR, so its
+    board differs from the direct one by up to 1e-6 mm in a few coordinates
+    (the IR content hash is the same). Both are accepted.
     """
     from antenna_cad.backends.kicad import write_kicad_project
     from antenna_cad.designspec import DesignSpec
 
     design = DesignSpec.load(element_path).synthesize()
-    with tempfile.TemporaryDirectory(prefix="aedl-t4-board-") as td:
-        board = write_kicad_project(design, td)
-        return hashlib.sha256(board.read_bytes()).hexdigest()
+    stored = type(design).from_dict(json.loads(json.dumps(design.to_dict(), sort_keys=True)))
+    hashes = []
+    for variant in (design, stored):
+        with tempfile.TemporaryDirectory(prefix="aedl-t4-board-") as td:
+            board = write_kicad_project(variant, td)
+            hashes.append(hashlib.sha256(board.read_bytes()).hexdigest())
+    return hashes[0], hashes[1]
+
+
+def regenerate_board_sha256(element_path: Path) -> str:
+    """SHA-256 of the board emitted straight from the synthesized design."""
+    return regenerate_board_sha256s(element_path)[0]
 
 
 def recompute(spec: TaskSpec, bundle_dir: Path, bundle: dict[str, Any]) -> Recomputation:
@@ -275,10 +294,8 @@ def recompute(spec: TaskSpec, bundle_dir: Path, bundle: dict[str, Any]) -> Recom
             screening_status=verdict if uncertified else None,
             screening_fidelity=str(element_fidelity) if uncertified else None,
         )
-    return Recomputation(
-        requirements=out,
-        board_sha256=regenerate_board_sha256(element_path),
-    )
+    direct, via_ir = regenerate_board_sha256s(element_path)
+    return Recomputation(requirements=out, board_sha256=direct, board_sha256_via_ir=via_ir)
 
 
 def provenance_complete(
@@ -390,10 +407,13 @@ def board_verdict(
     expected_sha256: str,
     origins: tuple[str, ...] = DEFAULT_ORIGINS,
     fidelities: tuple[str, ...] = DEFAULT_FIDELITIES,
+    also_accept_sha256: str = "",
 ) -> tuple[bool, dict[str, Any]]:
     """Structure, declared provenance, and regeneration checks on the board."""
     ok, reason = check_board(bundle_dir, bundle["board"])
     details: dict[str, Any] = {"structure": reason, "expected_sha256": expected_sha256}
+    if also_accept_sha256:
+        details["expected_sha256_via_ir"] = also_accept_sha256
     if not ok:
         return False, details
     shipped = hashlib.sha256(_inside(bundle_dir, bundle["board"], "board").read_bytes()).hexdigest()
@@ -407,12 +427,15 @@ def board_verdict(
         details["provenance"] = "board_provenance.artifact_hash is not the shipped file's SHA-256"
         return False, details
     details["provenance"] = "ok"
-    if shipped != expected_sha256:
+    if shipped == expected_sha256:
+        details["regeneration"] = "ok"
+    elif also_accept_sha256 and shipped == also_accept_sha256:
+        details["regeneration"] = "ok (emitted from the stored IR)"
+    else:
         details["regeneration"] = (
             "board differs from what antenna-cad emits for the submitted element spec"
         )
         return False, details
-    details["regeneration"] = "ok"
     return True, details
 
 
@@ -495,7 +518,12 @@ def score(
     ids = sorted(set(recomputed) | set(verdicts))
     accounted = {rid for rid in ids if _accounted(verdicts.get(rid), origins, fidelities)}
     board_ok, board_details = board_verdict(
-        bundle_dir, bundle, recomputation.board_sha256, origins, fidelities
+        bundle_dir,
+        bundle,
+        recomputation.board_sha256,
+        origins,
+        fidelities,
+        also_accept_sha256=recomputation.board_sha256_via_ir,
     )
 
     n = len(recomputed)

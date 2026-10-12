@@ -1,0 +1,33 @@
+{
+  "kind": "element.design",
+  "design_spec": {
+    "name": "hero_patch",
+    "problem": {
+      "center_frequency": "28.0 GHz",
+      "impedance": "50.0 Ω",
+      "substrate": "RO4350B",
+      "substrate_height": "0.508 mm",
+      "polarization": "linear"
+    },
+    "element_type": "rectangular_patch",
+    "array": null,
+    "acceptance": {
+      "freq_tolerance": 0.05,
+      "s11_max_db": -10.0,
+      "tune_freq_tolerance": 0.02
+    }
+  },
+  "ir_file": "design_ir.json",
+  "ir_hash": "028088d7d516e16705736db96737c61579e68392de6a23ca0c76a8e4a8680541",
+  "dimensions": {
+    "patch_width_m": 0.003507153023914803,
+    "patch_length_m": 0.0025590902308622607,
+    "inset_depth_m": 0.0007043319608795316,
+    "inset_gap_m": 0.0005560051119030511,
+    "feed_width_m": 0.0011120102238061022,
+    "eps_eff": 3.133752013735679,
+    "edge_resistance_ohm": 281.99862122392784,
+    "board_width_m": 0.009603153023914804,
+    "board_length_m": 0.00865509023086226
+  }
+}

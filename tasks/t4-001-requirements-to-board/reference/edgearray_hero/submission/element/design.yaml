@@ -1,0 +1,14 @@
+design:
+  name: hero_patch
+requirements:
+  center_frequency: 28.0 GHz
+  impedance: 50.0 ohm
+  substrate: RO4350B
+  substrate_height: 0.508 mm
+  polarization: linear
+element:
+  type: rectangular_patch
+acceptance:
+  freq_tolerance: 0.05
+  s11_max_db: -10.0
+  tune_freq_tolerance: 0.02

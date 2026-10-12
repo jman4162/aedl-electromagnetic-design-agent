@@ -1,0 +1,10 @@
+{
+  "kind": "board.layout",
+  "kicad_pcb_file": "hero_patch.kicad_pcb",
+  "gerber_zip": null,
+  "step_file": null,
+  "svg_file": null,
+  "drc_violations": 0,
+  "design_hash": "028088d7d516e16705736db96737c61579e68392de6a23ca0c76a8e4a8680541",
+  "dxf_file": null
+}

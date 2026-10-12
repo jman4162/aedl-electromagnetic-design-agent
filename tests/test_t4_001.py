@@ -9,6 +9,7 @@ architecture and element spec, runs a handful of times. Bundle-only defects
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import shutil
 from pathlib import Path
@@ -28,6 +29,7 @@ from aedl.evaluators import requirements_bundle as rb
 REPO = Path(__file__).resolve().parents[1]
 TASKS = REPO / "tasks"
 REFERENCE = TASKS / "t4-001-requirements-to-board" / "reference" / "submission"
+HERO = TASKS / "t4-001-requirements-to-board" / "reference" / "edgearray_hero" / "submission"
 TOLERANCES = find_task(TASKS, "t4-001").evaluator_params["actual_tolerance_by_suffix"]
 
 SYSTEM_IDS = {
@@ -493,3 +495,109 @@ def test_element_spec_outside_the_bundle_rejected(spec, bundle_copy):
     bundle["element_spec"] = "../../design.yaml"
     with pytest.raises(ValueError, match="inside"):
         rb.recompute(spec, bundle_copy, bundle)
+
+
+# --- EdgeArray hero bundle -------------------------------------------------------
+#
+# reference/edgearray_hero/submission is the output of `edgearray workflow hero`
+# converted by scripts/bundle_from_edgearray.py. It does not pass: the hero
+# leaves half the requirements unverified and computes two of its numbers from
+# inputs the task's parts table overrides. These tests pin that outcome and its
+# causes (docs/tasks/t4-001.md) so a change in either the evaluator or the
+# workflow shows up here.
+
+
+@pytest.fixture(scope="module")
+def hero_dir(tmp_path_factory):
+    dest = tmp_path_factory.mktemp("hero") / "submission"
+    shutil.copytree(HERO, dest)
+    return dest
+
+
+@pytest.fixture(scope="module")
+def hero_result(spec, hero_dir):
+    return get_evaluator(spec.evaluator)(spec, hero_dir / "bundle.json")
+
+
+def test_hero_board_is_accepted_from_the_stored_ir(hero_dir, hero_result):
+    """The hero emits its board from the IR file, whose polygons are rounded to
+    six decimals, so the file differs from a direct emission in a few
+    coordinates and matches the IR round trip."""
+    board = hero_result.info["board"]
+    assert board["valid"], board
+    assert board["regeneration"] == "ok (emitted from the stored IR)"
+    direct, via_ir = rb.regenerate_board_sha256s(hero_dir / "element" / "design.yaml")
+    assert direct != via_ir
+    assert board["shipped_sha256"] == via_ir
+
+
+def test_synthetic_reference_board_still_matches_direct_emission(reference_result):
+    assert reference_result.info["board"]["regeneration"] == "ok"
+
+
+def test_ir_board_with_an_edit_still_fails_regeneration(hero_dir):
+    bundle = _bundle(hero_dir)
+    direct, via_ir = rb.regenerate_board_sha256s(hero_dir / "element" / "design.yaml")
+    board = hero_dir / bundle["board"]
+    edited = board.read_text().replace('(paper "A4")', '(paper "A3")')
+    assert edited != board.read_text()
+    digest = hashlib.sha256(edited.encode()).hexdigest()
+    assert digest not in (direct, via_ir)
+    scratch = hero_dir.parent / "edited"
+    shutil.copytree(hero_dir, scratch)
+    (scratch / bundle["board"]).write_text(edited)
+    bundle["board_provenance"]["artifact_hash"] = "sha256:" + digest
+    ok, details = rb.board_verdict(scratch, bundle, direct, also_accept_sha256=via_ir)
+    assert not ok
+    assert "antenna-cad" in details["regeneration"]
+
+
+def test_hero_bundle_is_scored_not_passed(hero_result):
+    metrics = hero_result.info["metrics"]
+    assert not hero_result.passed
+    assert metrics["board_valid"] == 1.0
+    assert metrics["provenance_completeness"] == 1.0
+    assert metrics["verdict_agreement"] == pytest.approx(0.5)
+    assert metrics["actual_agreement"] == pytest.approx(0.3)
+    assert _failures(hero_result) == {"verdict-agreement", "actual-agreement"}
+
+
+def test_hero_verdict_disagreements_are_its_unverified_requirements(hero_result):
+    """Five verdicts disagree. Four are requirements the hero reported as
+    unverified that AEDL recomputes; the fifth is the element footprint, which
+    the hero's model does not contain."""
+    rows = hero_result.info["requirements"]
+    disagree = {rid for rid, row in rows.items() if not row["agrees"]}
+    assert disagree == {
+        "REQ-CLEARSKY-AGREE",
+        "REQ-COST",
+        "REQ-INDEP-LINK",
+        "REQ-LINK-MARGIN",
+        "ELEM-FOOTPRINT",
+    }
+    assert all(rows[rid]["submitted_status"] == "unknown" for rid in disagree)
+    assert all(rows[rid]["recomputed_status"] != "unknown" for rid in disagree)
+
+
+def test_hero_numbers_differ_from_the_recompute_by_more_than_the_tolerance(hero_result):
+    """REQ-SLL and REQ-POWER carry numbers whose verdicts agree and whose
+    values do not. The hero searches two scan planes without element failures
+    or phase quantization; its power omits the receive chain and the digital
+    section that the parts table adds."""
+    rows = hero_result.info["requirements"]
+    assert rows["REQ-SLL"]["agrees"] and not rows["REQ-SLL"]["actual_agrees"]
+    assert rows["REQ-POWER"]["agrees"] and not rows["REQ-POWER"]["actual_agrees"]
+    assert rows["REQ-SLL"]["actual"] - rows["REQ-SLL"]["submitted_actual"] > 2.0
+    assert rows["REQ-POWER"]["actual"] / rows["REQ-POWER"]["submitted_actual"] > 1.1
+    # The two numbers that do agree are the ones computed the same way.
+    assert rows["REQ-GRATING"]["actual_agrees"]
+    assert rows["REQ-GAIN-XCHECK"]["actual_agrees"]
+
+
+def test_hero_element_fails_the_band_screen(hero_result):
+    """ELEM-S11-IN-BAND is unknown at this tier, but the analytic screen it
+    keeps says the hero's 28.0 GHz, 50 ohm patch misses -10 dB over the band."""
+    row = hero_result.info["requirements"]["ELEM-S11-IN-BAND"]
+    assert row["recomputed_status"] == "unknown"
+    assert row["screening_status"] == "fail"
+    assert row["actual"] > -6.0

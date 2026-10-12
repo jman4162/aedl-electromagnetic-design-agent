@@ -1,0 +1,615 @@
+{
+  "kind": "architecture.case",
+  "frequency_hz": 28000000000.0,
+  "bandwidth_hz": 50000000.0,
+  "max_scan_deg": 60.0,
+  "nx": 16,
+  "ny": 16,
+  "dx_lambda": 0.5,
+  "dy_lambda": 0.5,
+  "taper": "taylor",
+  "taper_sll_db": -25.0,
+  "rules": [
+    {
+      "rule": "R1-band",
+      "formula": "f0 = frequency; B = bandwidth; theta_max = maxScanAngle (model attributes)",
+      "inputs": {
+        "frequency_hz": "SatcomTerminal28GHz::terminal::array::frequency",
+        "bandwidth_hz": "SatcomTerminal28GHz::terminal::array::bandwidth",
+        "max_scan_deg": "SatcomTerminal28GHz::terminal::array::maxScanAngle"
+      },
+      "outputs": {
+        "frequency_hz": 28000000000.0,
+        "bandwidth_hz": 50000000.0,
+        "max_scan_deg": 60.0
+      }
+    },
+    {
+      "rule": "R2-lattice",
+      "formula": "dx = dy = 0.5 * lambda0",
+      "inputs": {
+        "wavelength_m": 0.0107068735
+      },
+      "outputs": {
+        "dx_lambda": 0.5,
+        "dy_lambda": 0.5
+      }
+    },
+    {
+      "rule": "R3-taper",
+      "formula": "Taylor taper, design SLL -25 dB",
+      "inputs": {},
+      "outputs": {
+        "taper": "taylor",
+        "taper_sll_db": -25.0
+      }
+    },
+    {
+      "rule": "R4-geometry",
+      "formula": "el = 90 - theta_max; R = sqrt((Re + h)^2 - (Re cos el)^2) - Re sin el",
+      "inputs": {
+        "max_scan_deg": 60.0,
+        "orbit_altitude_m": 815000.0
+      },
+      "outputs": {
+        "elevation_deg": 30.0,
+        "range_m": 1418451.0477414937
+      }
+    },
+    {
+      "rule": "R5-element-count",
+      "formula": "smallest n: margin(n^2) >= M_req + allowance and EIRP(n^2) >= EIRP_req; G = 10log10(N) + 10log10(4 pi dx dy / lambda^2) + 10log10(eta_taper) + q 10log10(cos theta_max); EIRP = 10log10(N P_elem) + G; margin = EIRP - 20log10(4 pi R / lambda) + G_rx - 10log10(k T_sys B) - SNR_req",
+      "inputs": {
+        "link_margin_target_db": 0.0,
+        "eirp_target_dbw": null,
+        "link_allowance_db": 3.0
+      },
+      "outputs": {
+        "n_side": 9,
+        "predicted_link_margin_db": 4.090845984285565,
+        "predicted_eirp_dbw": 32.53258973063986,
+        "taper_efficiency": 0.8195261226312259
+      }
+    },
+    {
+      "rule": "R6-tile",
+      "formula": "n <= 8: n = 2^ceil(log2 n); n > 8: n = 8 * ceil(n / 8)",
+      "inputs": {
+        "n_side": 9,
+        "subarray_n": 8
+      },
+      "outputs": {
+        "nx": 16,
+        "ny": 16
+      }
+    }
+  ],
+  "study": {
+    "name": "hero-b0",
+    "array": {
+      "nx": 16,
+      "ny": 16,
+      "dx_lambda": 0.5,
+      "dy_lambda": 0.5,
+      "taper_type": "taylor",
+      "taper_sll_db": -25.0,
+      "scan_limit_deg": 60.0,
+      "element_cos_exp": 1.5
+    },
+    "rf": {
+      "tx_power_w_per_elem": 0.3,
+      "pa_efficiency": 0.25,
+      "noise_figure_db": 3.0
+    },
+    "scenario": {
+      "type": "comms",
+      "freq_hz": 28000000000.0,
+      "bandwidth_hz": 50000000.0,
+      "range_m": 1418451.0477414937,
+      "required_snr_db": 6.0,
+      "rx_antenna_gain_db": 38.0,
+      "scan_angle_deg": 60.0,
+      "elevation_deg": 30.0
+    }
+  },
+  "assumptions": {
+    "tx_power_w_per_elem": {
+      "value": 0.3,
+      "unit": "W",
+      "origin": "assumed",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": null
+    },
+    "pa_efficiency": {
+      "value": 0.25,
+      "unit": "",
+      "origin": "assumed",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": null
+    },
+    "required_snr_db": {
+      "value": 6.0,
+      "unit": "dB",
+      "origin": "assumed",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": null
+    },
+    "rx_antenna_gain_dbi": {
+      "value": 38.0,
+      "unit": "dBi",
+      "origin": "assumed",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": null
+    },
+    "orbit_altitude_m": {
+      "value": 815000.0,
+      "unit": "m",
+      "origin": "assumed",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": null
+    },
+    "noise_figure_db": {
+      "value": 3.0,
+      "unit": "dB",
+      "origin": "assumed",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": null
+    },
+    "element_cos_q": {
+      "value": 1.5,
+      "unit": "",
+      "origin": "assumed",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": null
+    },
+    "link_allowance_db": {
+      "value": 3.0,
+      "unit": "dB",
+      "origin": "assumed",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": null
+    }
+  },
+  "metrics": {
+    "g_peak_db": {
+      "value": 25.179226437308643,
+      "unit": "dB",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "beamwidth_az_deg": {
+      "value": 13.861297988875315,
+      "unit": "deg",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "beamwidth_el_deg": {
+      "value": 7.549049509288287,
+      "unit": "deg",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "sll_db": {
+      "value": -22.318329655882415,
+      "unit": "dB",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "scan_loss_db": {
+      "value": 3.0102999566398108,
+      "unit": "dB",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "directivity_db": {
+      "value": 29.053898380059834,
+      "unit": "dB",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "n_elements": {
+      "value": 256.0,
+      "unit": "",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "taper_efficiency": {
+      "value": 0.8195261226312259,
+      "unit": "",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "taper_loss_db": {
+      "value": 0.864371986111379,
+      "unit": "dB",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "element_cos_exp": {
+      "value": 1.5,
+      "unit": "",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "max_safe_spacing_lambda": {
+      "value": 0.5358983848622454,
+      "unit": "lambda",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "rf_power_w": {
+      "value": 76.8,
+      "unit": "W",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "rf_avg_power_w": {
+      "value": 76.8,
+      "unit": "W",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "pa_dc_power_w": {
+      "value": 307.2,
+      "unit": "W",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "rx_dc_power_w": {
+      "value": 0.0,
+      "unit": "W",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "adc_power_w": {
+      "value": 0.0,
+      "unit": "W",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "dac_power_w": {
+      "value": 0.0,
+      "unit": "W",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "dsp_power_w": {
+      "value": 0.0,
+      "unit": "W",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "dc_power_w": {
+      "value": 307.2,
+      "unit": "W",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "prime_power_w": {
+      "value": 368.64,
+      "unit": "W",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "duty_cycle": {
+      "value": 1.0,
+      "unit": "",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "pa_efficiency": {
+      "value": 0.25,
+      "unit": "",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "heat_dissipation_w": {
+      "value": 230.39999999999998,
+      "unit": "W",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "wavelength_m": {
+      "value": 0.0107068735,
+      "unit": "m",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "cell_area_cm2": {
+      "value": 0.28659285036250565,
+      "unit": "cm^2",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "aperture_area_m2": {
+      "value": 0.007336776969280145,
+      "unit": "m^2",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "heat_flux_w_per_cm2": {
+      "value": 3.140343518205732,
+      "unit": "W/cm^2",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "radiated_power_density_peak_w_per_cm2": {
+      "value": 1.046781172735244,
+      "unit": "W/cm^2",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "radiated_power_density_avg_w_per_cm2": {
+      "value": 1.046781172735244,
+      "unit": "W/cm^2",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "recurring_cost_usd": {
+      "value": 25600.0,
+      "unit": "USD",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "nre_usd": {
+      "value": 0.0,
+      "unit": "USD",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "integration_cost_usd": {
+      "value": 0.0,
+      "unit": "USD",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "total_cost_usd": {
+      "value": 25600.0,
+      "unit": "USD",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "cost_per_element_usd": {
+      "value": 100.0,
+      "unit": "USD",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "cost_usd": {
+      "value": 25600.0,
+      "unit": "USD",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "tx_power_total_dbw": {
+      "value": 18.853612200315123,
+      "unit": "dBW",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "tx_power_per_elem_dbw": {
+      "value": -5.228787452803374,
+      "unit": "dBW",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "pa_compression_db": {
+      "value": 0.0,
+      "unit": "dB",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "sndr_rx_db": {
+      "value": 20.032743769681176,
+      "unit": "dB",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "evm_rms_pct": {
+      "value": 9.96237330848904,
+      "unit": "%",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "g_tx_db": {
+      "value": 25.179226437308643,
+      "unit": "dB",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "eirp_dbw": {
+      "value": 43.03283863762377,
+      "unit": "dBW",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "path_loss_db": {
+      "value": 184.9855820188105,
+      "unit": "dB",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "fspl_db": {
+      "value": 184.42723089722222,
+      "unit": "dB",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "atmospheric_loss_computed_db": {
+      "value": 0.5583511215882739,
+      "unit": "dB",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "rain_loss_computed_db": {
+      "value": 0.0,
+      "unit": "dB",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "g_rx_db": {
+      "value": 38.0,
+      "unit": "dB",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "rx_power_dbw": {
+      "value": -103.95274338118674,
+      "unit": "dBW",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "noise_power_dbw": {
+      "value": -123.98548715086791,
+      "unit": "dBW",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "noise_temp_system_k": {
+      "value": 578.626071340975,
+      "unit": "K",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "noise_figure_used_db": {
+      "value": 3.0,
+      "unit": "dB",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "snr_rx_db": {
+      "value": 20.032743769681176,
+      "unit": "dB",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "link_margin_db": {
+      "value": 14.032743769681176,
+      "unit": "dB",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    },
+    "required_snr_db": {
+      "value": 6.0,
+      "unit": "dB",
+      "origin": "derived",
+      "fidelity": "analytic",
+      "artifact": null,
+      "capability": "phased-array-systems@0.14.1"
+    }
+  }
+}
