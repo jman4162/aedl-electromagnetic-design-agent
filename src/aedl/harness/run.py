@@ -250,6 +250,10 @@ def run_task(
         elif not submission.exists():
             record.status = "no_submission"
             record.error = f"agent did not create {ws.submission_name(spec)}"
+            # An adapter that builds the deliverable itself says why it could not.
+            reason = info.extra.get("deliverable_error")
+            if reason:
+                record.error += f": {reason}"
         else:
             try:
                 result = get_evaluator(spec.evaluator)(spec, submission)

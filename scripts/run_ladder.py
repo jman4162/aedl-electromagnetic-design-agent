@@ -15,6 +15,11 @@ Usage:
       --baselines b2,b4 --repeats 5 --write-leaderboard
 
 The EdgeArray executable is ``$AEDL_EDGEARRAY_BIN`` or ``edgearray`` on PATH.
+
+Attempts are isolated: the adapter gives each one a data directory and project
+id of its own, so baselines and repeats never share design state. The
+deliverable is built from that data directory (t1-001 and t4-001 only; a task
+without a mapping ends as ``no_submission`` with the reason in the record).
 """
 
 from __future__ import annotations

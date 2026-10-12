@@ -138,7 +138,14 @@ EdgeArray Studio headless agent (`edgearray agent run`; executable from
 `scripts/run_ladder.py` runs one task across EdgeArray's baselines b0 to b4,
 three attempts each by default, and prints pass rate, mean tokens and mean
 cost per baseline; `--write-leaderboard` appends that table to
-`leaderboard.md`.
+`leaderboard.md`. Every EdgeArray attempt runs with its own `--data-dir`
+(inside the run workspace) and its own `--project` (`aedl-<task>-<token>`), so
+each starts from an empty design state and one baseline's artifacts cannot
+reach another's. The EdgeArray agent cannot write into the AEDL workspace, so
+the adapter builds the deliverable from the run's data directory after the
+run: `submission/` for t4-001 (via `scripts/bundle_from_edgearray.py`) and
+`design.yaml` for t1-001 (from the head `element.design` artifact, else the
+most recent one). Other tasks have no mapping, and the run record says so.
 
 Optional extras: `systems` (Tier 3), `element` (antenna-cad, Tier 1) and
 `sysml` (sysml2kit and the RF model library, Tier 4). Tests for a tier skip

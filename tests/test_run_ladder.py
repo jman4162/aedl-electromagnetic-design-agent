@@ -5,11 +5,10 @@ from __future__ import annotations
 import runpy
 from pathlib import Path
 
-import numpy as np
 import pytest
 
 from aedl.harness.adapters.edgearray import ENV_BIN
-from test_edgearray_adapter import SOLVE, make_fake
+from test_edgearray_adapter import T1_REFERENCE, make_fake, make_project
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "run_ladder.py"
@@ -22,15 +21,14 @@ def ladder():
 
 @pytest.fixture()
 def fake_bin(tmp_path, monkeypatch):
-    npz = tmp_path / "weights.npz"
-    np.savez(npz, weights=runpy.run_path(str(SOLVE))["solve"]())
-    monkeypatch.setenv(ENV_BIN, str(make_fake(tmp_path, npz)))
+    project = make_project(tmp_path / "project", [(T1_REFERENCE, "2026-10-01T00:00:00Z")], head=0)
+    monkeypatch.setenv(ENV_BIN, str(make_fake(tmp_path, project)))
 
 
 def _argv(tmp_path, *extra):
     return [
         "--task",
-        "t2-001",
+        "t1-001",
         "--model",
         "ollama/qwen3.5:9b",
         "--baselines",
@@ -52,8 +50,11 @@ def test_runs_every_baseline_and_repeat(ladder, fake_bin, tmp_path, capsys):
     assert ladder["main"](_argv(tmp_path)) == 0
     assert len(list((tmp_path / "runs").glob("*/manifest.json"))) == 4
     out = capsys.readouterr().out
-    assert "| t2-001 | b0 | - | 2 | 100% | 0 | 0.0000 |" in out
-    assert "| t2-001 | b2 | ollama/qwen3.5:9b | 2 | 100% | 1,540 | 0.0125 |" in out
+    assert "| t1-001 | b0 | - | 2 | 100% | analytic-screening | 0 | 0.0000 |" in out
+    assert (
+        "| t1-001 | b2 | ollama/qwen3.5:9b | 2 | 100% | analytic-screening | 1,540 | 0.0125 |"
+        in out
+    )
     assert not (tmp_path / "leaderboard.md").exists()
 
 
@@ -64,7 +65,10 @@ def test_write_leaderboard_appends(ladder, fake_bin, tmp_path):
     text = board.read_text()
     assert text.startswith("# existing\n")
     assert "EdgeArray baseline ladder" in text
-    assert "| task | baseline | model | runs | pass rate | mean tokens | mean cost USD |" in text
+    assert (
+        "| task | baseline | model | runs | pass rate | tier | mean tokens | mean cost USD |"
+        in text
+    )
     assert "Approvals: all rejected" in text
 
 
@@ -93,7 +97,7 @@ def test_table_handles_runs_without_usage(ladder):
 
 def test_unknown_baseline_is_an_argument_error(ladder, tmp_path):
     with pytest.raises(SystemExit):
-        ladder["main"](["--task", "t2-001", "--model", "m", "--baselines", "b7"])
+        ladder["main"](["--task", "t1-001", "--model", "m", "--baselines", "b7"])
 
 
 def test_approval_and_budget_reach_every_baseline(ladder, fake_bin, tmp_path, capsys):
@@ -114,3 +118,18 @@ def test_approval_and_budget_reach_every_baseline(ladder, fake_bin, tmp_path, ca
         assert args[args.index("--budget-s") + 1] == "300"
         # b0 runs EdgeArray's rules without a model.
         assert ("--model" in args) == (args[args.index("--baseline") + 1] != "b0")
+
+
+def test_every_attempt_has_its_own_data_dir_and_project(ladder, fake_bin, tmp_path):
+    """Baselines and repeats never share EdgeArray state, so one attempt's
+    design history cannot reach the next."""
+    import json
+
+    assert ladder["main"](_argv(tmp_path)) == 0
+    seen = [
+        json.loads(p.read_text())
+        for p in (tmp_path / "runs").glob("*/workspace/edgearray/argv.json")
+    ]
+    assert len(seen) == 4
+    assert len({args[args.index("--data-dir") + 1] for args in seen}) == 4
+    assert len({args[args.index("--project") + 1] for args in seen}) == 4
