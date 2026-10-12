@@ -384,6 +384,31 @@ def test_edited_board_with_honest_hash_fails_regeneration(bundle_copy, recompute
     assert "antenna-cad" in details["regeneration"]
 
 
+def test_board_emitted_for_a_different_element_spec_is_rejected(bundle_copy, recomputed, tmp_path):
+    """A real antenna-cad board with an honest hash, built from another element
+    spec (30 GHz, 0.508 mm), is not the board the submitted spec produces."""
+    import yaml
+    from antenna_cad.backends.kicad import write_kicad_project
+    from antenna_cad.designspec import DesignSpec
+
+    bundle = _bundle(bundle_copy)
+    spec_path = bundle_copy / bundle["element_spec"]
+    other = yaml.safe_load(spec_path.read_text())
+    other["design"]["name"] = "other_patch"
+    other["requirements"]["center_frequency"] = "30 GHz"
+    other["requirements"]["substrate_height"] = "0.508 mm"
+    other_path = tmp_path / "other.yaml"
+    other_path.write_text(yaml.safe_dump(other))
+    foreign = write_kicad_project(DesignSpec.load(other_path).synthesize(), tmp_path / "other")
+    _board_path(bundle_copy).write_bytes(foreign.read_bytes())
+
+    details = _details(bundle_copy, _rehash_board(bundle_copy), recomputed)["board"]
+    assert details["structure"] == "ok"
+    assert details["provenance"] == "ok"
+    assert not details["valid"]
+    assert "antenna-cad" in details["regeneration"]
+
+
 def test_board_hash_must_match_the_shipped_file(bundle_copy, recomputed):
     bundle = _bundle(bundle_copy)
     bundle["board_provenance"]["artifact_hash"] = "0" * 64

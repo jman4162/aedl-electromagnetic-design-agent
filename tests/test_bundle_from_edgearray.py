@@ -130,11 +130,38 @@ def test_verified_verdicts_carry_numbers_and_engine_provenance(converted):
     assert sll["provenance"] == {
         "artifact_hash": "sha256:" + report_id,
         "capability": "edgearray-array-envelope@1.0.0",
-        "origin": "derived",
+        "origin": "assumed",
         "fidelity": "analytic",
     }
     assert bundle["verdicts"]["REQ-POWER"]["unit"] == "W"
     assert bundle["verdicts"]["REQ-POWER"]["actual"] == pytest.approx(368.64)
+
+
+def test_verdicts_resting_on_assumed_inputs_are_labelled_assumed(converted):
+    """The hero's report warns which verdicts were computed on assumed inputs
+    (the element pattern exponent for the array verdicts; transmit power, PA
+    efficiency and others for power). All four verified verdicts are named."""
+    verdicts = _bundle(converted)["verdicts"]
+    verified = {rid for rid, v in verdicts.items() if v["provenance"]}
+    assert verified == {"REQ-GAIN-XCHECK", "REQ-GRATING", "REQ-SLL", "REQ-POWER"}
+    for rid in verified:
+        assert verdicts[rid]["provenance"]["origin"] == "assumed", rid
+    record = json.loads((converted / "conversion.json").read_text())
+    assert record["assumed_verdicts"] == sorted(verified)
+
+
+def test_a_verdict_not_named_in_an_assumed_inputs_warning_stays_derived(
+    mod, fixture_copy, tmp_path
+):
+    payload = _artifact(fixture_copy, "e9", "payload.json")
+    doc = json.loads(payload.read_text())
+    doc["warnings"] = [w for w in doc["warnings"] if not w.startswith("REQ-POWER: checked by")]
+    payload.write_text(json.dumps(doc))
+    out = tmp_path / "out"
+    mod["convert"](fixture_copy, PROJECT, out)
+    verdicts = _bundle(out)["verdicts"]
+    assert verdicts["REQ-POWER"]["provenance"]["origin"] == "derived"
+    assert verdicts["REQ-SLL"]["provenance"]["origin"] == "assumed"
 
 
 def test_empty_unit_becomes_null(converted):
@@ -228,6 +255,20 @@ def test_board_not_built_from_the_element_is_an_error(mod, fixture_copy, tmp_pat
     doc["design_hash"] = "0" * 64
     payload.write_text(json.dumps(doc))
     with pytest.raises(mod["ConversionError"], match="design_hash"):
+        mod["convert"](fixture_copy, PROJECT, tmp_path / "out")
+
+
+@pytest.mark.parametrize("name", ["../payload.json", "sub/hero_patch.kicad_pcb", "/etc/hosts"])
+def test_board_file_outside_the_artifact_is_an_error(mod, fixture_copy, tmp_path, name):
+    for rel in ("payload.json", "manifest.json"):
+        path = _artifact(fixture_copy, "11", rel)
+        doc = json.loads(path.read_text())
+        if rel == "payload.json":
+            doc["kicad_pcb_file"] = name
+        else:
+            doc["files"].append(name)
+        path.write_text(json.dumps(doc))
+    with pytest.raises(mod["ConversionError"], match="board file"):
         mod["convert"](fixture_copy, PROJECT, tmp_path / "out")
 
 

@@ -67,9 +67,21 @@ provenance.artifact_hash            the verification report artifact id
                                     (the artifact that records the number)
 provenance.capability               ``engine`` (for example
                                     ``edgearray-array-envelope@1.0.0``)
-provenance.origin                   ``derived``
+provenance.origin                   ``assumed`` when a hero warning names
+                                    the verdict as checked "on assumed
+                                    inputs", else ``derived``
 provenance.fidelity                 ``fidelity`` (the hero's value)
 ==================================  =====================================
+
+Origin rule. The hero's report carries warnings of the form
+``REQ-A, REQ-B: checked by ENGINE on assumed inputs (key, key)``. A verdict
+named in one of them was computed from inputs the hero assumed, not from
+inputs the requirements or the design supply, so its origin is ``assumed``.
+The rest are ``derived``. For the committed hero run that is all four
+verified verdicts: REQ-GAIN-XCHECK, REQ-GRATING and REQ-SLL (assumed
+element pattern exponent) and REQ-POWER (assumed transmit power, PA
+efficiency, noise figure and others). ``conversion.json`` lists them under
+``assumed_verdicts``. Unverified verdicts carry no provenance.
 
 A verdict that is unverified or has no ``actual``/``engine`` gets
 ``provenance: null``. The hero's model has no element requirements, so
@@ -103,6 +115,10 @@ FILLED_DIGITIZATION_LEVEL = "element"
 FILLED_ADC_ENOB = 12.0
 
 ELEMENT_REQUIREMENT_IDS = ("ELEM-FOOTPRINT", "ELEM-S11-IN-BAND")
+#: Hero report warning: "REQ-A, REQ-B: checked by ENGINE on assumed inputs (...)".
+_ASSUMED_WARNING = re.compile(
+    r"^(?P<ids>[A-Z][A-Z0-9-]*(?:, [A-Z][A-Z0-9-]*)*): checked by .+ on assumed inputs"
+)
 _ARTIFACT_ID = re.compile(r"[0-9a-f]{64}")
 
 
@@ -229,8 +245,21 @@ def element_yaml(payload: dict[str, Any]) -> str:
     return yaml.safe_dump(doc, sort_keys=False)
 
 
+def assumed_verdict_ids(warnings: list[Any]) -> set[str]:
+    """Requirement ids the hero's warnings say were checked on assumed inputs."""
+    ids: set[str] = set()
+    for warning in warnings:
+        match = _ASSUMED_WARNING.match(str(warning))
+        if match:
+            ids.update(match.group("ids").split(", "))
+    return ids
+
+
 def _verdict(
-    raw: dict[str, Any], report_id: str, vocab_fidelities: tuple[str, ...]
+    raw: dict[str, Any],
+    report_id: str,
+    vocab_fidelities: tuple[str, ...],
+    assumed: set[str],
 ) -> dict[str, Any]:
     status = {"pass": "pass", "fail": "fail", "unverified": "unknown"}.get(str(raw["status"]))
     if status is None:
@@ -249,7 +278,7 @@ def _verdict(
         provenance = {
             "artifact_hash": "sha256:" + report_id,
             "capability": str(engine),
-            "origin": "derived",
+            "origin": "assumed" if str(raw["id"]) in assumed else "derived",
             "fidelity": str(fidelity),
         }
     return {"status": status, "actual": actual, "unit": unit, "provenance": provenance}
@@ -277,7 +306,12 @@ def convert(
     )
     board_name = str(board_payload["kicad_pcb_file"])
     board_src = board_dir / board_name
-    if board_name not in board_manifest.get("files", []) or not board_src.is_file():
+    if (
+        Path(board_name).name != board_name
+        or board_name not in board_manifest.get("files", [])
+        or board_src.is_symlink()
+        or not board_src.is_file()
+    ):
         raise ConversionError(f"board file {board_name!r} is not in artifact {board_id}")
     if board_payload["design_hash"] != element_payload["ir_hash"]:
         raise ConversionError("board.design_hash differs from the element ir_hash")
@@ -292,9 +326,10 @@ def convert(
     shutil.copyfile(board_src, out_dir / board_rel)
     board_bytes = (out_dir / board_rel).read_bytes()
 
+    assumed = assumed_verdict_ids(report.get("warnings", []))
     verdicts: dict[str, Any] = {}
     for raw in report["verdicts"]:
-        verdicts[str(raw["id"])] = _verdict(raw, report_id, vocab_fidelities)
+        verdicts[str(raw["id"])] = _verdict(raw, report_id, vocab_fidelities, assumed)
     for rid in ELEMENT_REQUIREMENT_IDS:
         verdicts[rid] = {"status": "unknown", "actual": None, "unit": None, "provenance": None}
     verdicts = dict(sorted(verdicts.items()))
@@ -331,6 +366,9 @@ def convert(
             ],
         },
         "filled_in": filled,
+        "assumed_verdicts": sorted(
+            rid for rid, v in verdicts.items() if v["provenance"] and rid in assumed
+        ),
         "element_requirements": ("not in the hero's model; reported as unknown with a null actual"),
         "hero_warnings": list(report.get("warnings", [])),
     }

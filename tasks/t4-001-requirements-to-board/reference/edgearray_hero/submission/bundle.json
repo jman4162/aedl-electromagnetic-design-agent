@@ -61,7 +61,7 @@
       "provenance": {
         "artifact_hash": "sha256:e98290148e27b67a0371db84da2a67b18b3cba58f4a877c8b8c2f84df020b761",
         "capability": "edgearray-array-envelope@1.0.0",
-        "origin": "derived",
+        "origin": "assumed",
         "fidelity": "analytic"
       }
     },
@@ -72,7 +72,7 @@
       "provenance": {
         "artifact_hash": "sha256:e98290148e27b67a0371db84da2a67b18b3cba58f4a877c8b8c2f84df020b761",
         "capability": "edgearray-array-envelope@1.0.0",
-        "origin": "derived",
+        "origin": "assumed",
         "fidelity": "analytic"
       }
     },
@@ -95,7 +95,7 @@
       "provenance": {
         "artifact_hash": "sha256:e98290148e27b67a0371db84da2a67b18b3cba58f4a877c8b8c2f84df020b761",
         "capability": "edgearray-system@1.0.0",
-        "origin": "derived",
+        "origin": "assumed",
         "fidelity": "analytic"
       }
     },
@@ -106,7 +106,7 @@
       "provenance": {
         "artifact_hash": "sha256:e98290148e27b67a0371db84da2a67b18b3cba58f4a877c8b8c2f84df020b761",
         "capability": "edgearray-array-envelope@1.0.0",
-        "origin": "derived",
+        "origin": "assumed",
         "fidelity": "analytic"
       }
     }

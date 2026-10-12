@@ -25,6 +25,12 @@
     "array.phase_bits=6: the hero models ideal phase shifters",
     "digital.digitization_level=element and digital.adc_enob=12.0: PAS DigitalConfig defaults, used by the hero's study"
   ],
+  "assumed_verdicts": [
+    "REQ-GAIN-XCHECK",
+    "REQ-GRATING",
+    "REQ-POWER",
+    "REQ-SLL"
+  ],
   "element_requirements": "not in the hero's model; reported as unknown with a null actual",
   "hero_warnings": [
     "REQ-COST (must) unverified: engine edgearray-system returned no numeric 'unit_cost_usd'",
