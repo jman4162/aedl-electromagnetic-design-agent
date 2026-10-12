@@ -395,6 +395,24 @@ Ordered by how much they affect whether a published number is trustworthy.
    usage. If a second agent family is benchmarked, token accounting needs a
    provider-neutral path.
 
+## Upstream fixes needed
+
+AEDL fixes library bugs upstream rather than working around them (CLAUDE.md).
+One workaround is in the tree on purpose until the upstream change ships.
+
+- **antenna-cad: round IR coordinates consistently.** `to_design` and the
+  KiCad emitter should round polygon and pad coordinates the same way
+  the stored IR does (six decimals), so a board emitted straight from the
+  synthesized design and a board emitted from that design after
+  `to_dict` -> JSON -> `from_dict` are byte-identical. Today they differ
+  in the sixth decimal in a few coordinates (`(at 4.801576 7.12609)` against
+  `(at 4.801577 7.12609)`), while the IR content hash is the same.
+  antenna-cad is a separate published repository outside this change set.
+  Until it is fixed, `requirements_bundle` accepts a shipped board equal to
+  either emission (`regenerate_board_sha256s`; `docs/tasks/t4-001.md`, Board
+  regeneration). When it is fixed, drop the second hash and the
+  `board_sha256_via_ir` field, and bump the antenna-cad pin.
+
 ## Budget
 
 | work | hours |
