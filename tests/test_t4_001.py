@@ -111,6 +111,7 @@ def test_task_loads_through_the_registry(spec):
         "actual_agreement",
         "provenance_completeness",
         "board_valid",
+        "unrecognized_verdict_count",
     }
 
 
@@ -339,6 +340,44 @@ def test_missing_verdict_is_incomplete_provenance(bundle_copy, recomputed):
     )
 
 
+def _padded(bundle: dict, n: int = 200) -> dict:
+    for i in range(n):
+        bundle["verdicts"][f"PAD-{i:03d}"] = {"status": "unknown", "actual": None, "unit": None}
+    return bundle
+
+
+def test_padding_with_fake_unknown_ids_does_not_dilute_completeness(bundle_copy, recomputed):
+    """Two unaccounted requirements out of ten, hidden behind 200 fake ids that
+    each count as an accounted unknown, used to score 0.96."""
+    bundle = _bundle(bundle_copy)
+    for rid in ("REQ-COST", "REQ-GRATING"):
+        del bundle["verdicts"][rid]["provenance"]
+    metrics = _score(bundle_copy, _padded(bundle), recomputed)
+    assert metrics["provenance_completeness"] == pytest.approx(8 / N)
+    assert metrics["unrecognized_verdict_count"] == 200
+
+
+def test_unrecognized_verdict_ids_are_reported(bundle_copy, recomputed):
+    bundle = _padded(_bundle(bundle_copy), 3)
+    details = _details(bundle_copy, bundle, recomputed)
+    assert details["unrecognized_verdicts"] == ["PAD-000", "PAD-001", "PAD-002"]
+    assert details["provenance_incomplete"] == []
+
+
+def test_unrecognized_verdict_ids_fail_the_gate(spec, bundle_copy):
+    bundle = _bundle(bundle_copy)
+    bundle["verdicts"]["REQ-NOT-IN-THE-TASK"] = {"status": "unknown", "actual": None, "unit": None}
+    _save(bundle_copy, bundle)
+    result = get_evaluator(spec.evaluator)(spec, bundle_copy / "bundle.json")
+    assert not result.passed
+    assert _failures(result) == {"no-unrecognized-verdicts"}
+    assert result.info["unrecognized_verdicts"] == ["REQ-NOT-IN-THE-TASK"]
+
+
+def test_reference_has_no_unrecognized_verdicts(reference_result):
+    assert reference_result.info["metrics"]["unrecognized_verdict_count"] == 0
+
+
 # --- board -------------------------------------------------------------------------
 
 
@@ -455,6 +494,22 @@ def test_board_path_checks(bundle_copy, rel, reason):
     ok, why = rb.check_board(bundle_copy, rel)
     assert not ok
     assert reason in why
+
+
+def test_parse_header_is_linear_in_the_size_of_the_board():
+    """A ~5 MB board of small lists took minutes when every token re-stripped
+    the rest of the text."""
+    import time
+
+    body = "(gr_line (start 0 0) (end 1 1) (layer F.Cu))\n" * 120_000
+    text = '(kicad_pcb (version 20240108) (generator "x")\n' + body + ")\n"
+    assert len(text) > 5_000_000
+    t0 = time.perf_counter()
+    head, children, error = rb._parse_header(text)
+    elapsed = time.perf_counter() - t0
+    assert (head, error) == ("kicad_pcb", "")
+    assert children["version"] == ["20240108"]
+    assert elapsed < 2.0, elapsed
 
 
 # --- the degenerate bundle -------------------------------------------------------------

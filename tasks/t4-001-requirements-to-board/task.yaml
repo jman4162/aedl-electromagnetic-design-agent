@@ -144,8 +144,10 @@ deliverable:
       it is within the tolerance below of the recomputed value: 0.1 dB for
       dB metrics, 1 % for watts and dollars, 0.005 for grating margin in
       wavelengths, 0.01 mm for the footprint. provenance_completeness covers
-      every requirement and verdict: a missing verdict or a pass/fail verdict
-      without a number is incomplete. board_valid checks that the board parses
+      the task's requirements: a missing verdict or a pass/fail verdict
+      without a number is incomplete. A verdict for an id that is not one of
+      the task's requirements is not counted there and fails the
+      no-unrecognized-verdicts gate. board_valid checks that the board parses
       as one (kicad_pcb ...) S-expression with version and generator entries,
       that board_provenance carries its SHA-256, and that it matches what
       antenna-cad emits for your element spec. The number of requirements
@@ -185,3 +187,6 @@ requirements:
   - id: board
     metric: board_valid
     min: 1.0
+  - id: no-unrecognized-verdicts
+    metric: unrecognized_verdict_count
+    max: 0

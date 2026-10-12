@@ -33,12 +33,16 @@ Metrics produced:
 - ``actual_agreement``: fraction of recomputed requirements whose submitted
   ``actual`` is within the task's tolerance of the recomputed value (a null
   actual agrees only on a requirement recomputed as unknown)
-- ``provenance_completeness``: over every requirement and every submitted
-  verdict, the fraction that is accounted for: an ``unknown`` verdict with a
+- ``provenance_completeness``: over the task's requirements, the fraction
+  that is accounted for: an ``unknown`` verdict with a
   null actual, or a numeric actual with a complete provenance record (a
   SHA-256 ``artifact_hash``, a non-empty ``capability``, and ``origin`` and
   ``fidelity`` from the task's vocabularies). A missing verdict, or a
-  pass/fail verdict without a number, is incomplete.
+  pass/fail verdict without a number, is incomplete. Verdicts for ids the
+  task does not have are not counted here.
+- ``unrecognized_verdict_count``: submitted verdict ids that are not one of
+  the task's requirements. Gated at 0: the bundle names every requirement
+  and nothing else.
 - ``board_valid``: 1 when the board path stays inside the bundle, ends in
   ``.kicad_pcb``, parses as a single ``(kicad_pcb ...)`` S-expression with
   ``version`` and ``generator`` children, carries a complete
@@ -323,6 +327,7 @@ def _bare_hash(digest: str) -> str:
 
 
 _TOKEN = re.compile(r'\s*(?:(\()|(\))|"((?:[^"\\]|\\.)*)"|([^\s()"]+))', re.DOTALL)
+_TRAILING_SPACE = re.compile(r"\s*\Z")
 
 
 def _parse_header(text: str) -> tuple[str | None, dict[str, list[str]], str]:
@@ -337,7 +342,7 @@ def _parse_header(text: str) -> tuple[str | None, dict[str, list[str]], str]:
     current: list[str] | None = None
     expect_head = False
     while pos < len(text):
-        if not text[pos:].strip():
+        if _TRAILING_SPACE.match(text, pos):
             break
         m = _TOKEN.match(text, pos)
         if m is None:
@@ -515,7 +520,11 @@ def score(
             "actual_agrees": actual_ok,
         }
 
-    ids = sorted(set(recomputed) | set(verdicts))
+    # The denominator is the task's own requirement set. A verdict for an id
+    # the task does not have is reported and gated, but never counted, so
+    # extra ids cannot dilute the requirements that are unaccounted for.
+    ids = sorted(recomputed)
+    unrecognized = sorted(set(verdicts) - set(recomputed))
     accounted = {rid for rid in ids if _accounted(verdicts.get(rid), origins, fidelities)}
     board_ok, board_details = board_verdict(
         bundle_dir,
@@ -532,12 +541,13 @@ def score(
         "actual_agreement": actual_agree / n if n else 0.0,
         "provenance_completeness": len(accounted) / len(ids) if ids else 0.0,
         "board_valid": 1.0 if board_ok else 0.0,
+        "unrecognized_verdict_count": float(len(unrecognized)),
         "recomputed_pass_count": float(sum(r.status == "pass" for r in recomputed.values())),
     }
     details = {
         "requirements": rows,
         "provenance_incomplete": sorted(set(ids) - accounted),
-        "unrecognized_verdicts": sorted(set(verdicts) - set(recomputed)),
+        "unrecognized_verdicts": unrecognized,
         "board": {"valid": board_ok, **board_details},
     }
     return metrics, details
