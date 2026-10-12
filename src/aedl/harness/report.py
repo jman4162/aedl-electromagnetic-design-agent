@@ -85,23 +85,38 @@ def _has_tiers(records: list[dict[str, Any]]) -> bool:
     return any(tier_of(r) for r in records)
 
 
+def baseline_of(rec: dict[str, Any]) -> str | None:
+    """The agent baseline (EdgeArray's b0..b4) a run used, if its adapter recorded one."""
+    extra = (rec.get("usage") or {}).get("extra") or {}
+    baseline = extra.get("baseline") or rec.get("baseline")
+    return str(baseline) if baseline else None
+
+
+def _has_baselines(records: list[dict[str, Any]]) -> bool:
+    return any(baseline_of(r) for r in records)
+
+
 def runs_table(records: list[dict[str, Any]]) -> str:
     tiers = _has_tiers(records)
+    baselines = _has_baselines(records)
     header = (
-        "| run | task | agent | model | outcome | "
+        "| run | task | agent | model | "
+        + ("baseline | " if baselines else "")
+        + "outcome | "
         + ("tier | " if tiers else "")
         + "failed requirements | turns | tokens out | est. cost USD | wall s | model calls |"
     )
-    rows = [header, "|" + "---|" * (12 if tiers else 11)]
+    rows = [header, "|" + "---|" * (11 + tiers + baselines)]
     for r in records:
         usage = r.get("usage") or {}
         calls = r.get("calls") or {}
         status = r.get("status", "unknown")
         tier_cell = f"{tier_of(r) or '—'} | " if tiers else ""
+        baseline_cell = f"{baseline_of(r) or '—'} | " if baselines else ""
         rows.append(
             f"| `{str(r.get('run_id', '?'))[:24]}` | {r.get('task_id', '?')} | "
             f"{r.get('agent', '?')} | "
-            f"{model_of(r)} | {_STATUS_GLYPH.get(status, status)} | {tier_cell}"
+            f"{model_of(r)} | {baseline_cell}{_STATUS_GLYPH.get(status, status)} | {tier_cell}"
             f"{_failed_requirements(r)} | {_fmt(usage.get('num_turns'), 'd')} | "
             f"{_fmt(usage.get('output_tokens'), ',d')} | {_fmt(usage.get('cost_usd'), '.3f')} | "
             f"{_fmt(r.get('agent_wall_time_s'), '.0f')} | {_fmt(calls.get('total_calls'), 'd')} |"
@@ -110,20 +125,23 @@ def runs_table(records: list[dict[str, Any]]) -> str:
 
 
 def summary_table(records: list[dict[str, Any]]) -> str:
-    grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    baselines = _has_baselines(records)
+    grouped: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
     for r in records:
-        grouped[(r.get("task_id", "?"), model_of(r))].append(r)
+        grouped[(r.get("task_id", "?"), model_of(r), baseline_of(r) or "—")].append(r)
 
     tiers = _has_tiers(records)
     rows = [
         "| task | model | "
+        + ("baseline | " if baselines else "")
         + ("tier | " if tiers else "")
         + "attempts | passed | pass rate | median est. cost USD |",
-        "|" + "---|" * (7 if tiers else 6),
+        "|" + "---|" * (6 + tiers + baselines),
     ]
-    for (task, agent), group in sorted(grouped.items()):
+    for (task, agent, baseline), group in sorted(grouped.items()):
         labels = sorted({t for r in group if (t := tier_of(r))})
         tier_cell = f"{', '.join(labels) or '—'} | " if tiers else ""
+        baseline_cell = f"{baseline} | " if baselines else ""
         passed = sum(1 for r in group if r.get("status") == "pass")
         costs = sorted(
             cost
@@ -132,7 +150,7 @@ def summary_table(records: list[dict[str, Any]]) -> str:
         )
         median = statistics.median(costs) if costs else None
         rows.append(
-            f"| {task} | {agent} | {tier_cell}{len(group)} | {passed} | "
+            f"| {task} | {agent} | {baseline_cell}{tier_cell}{len(group)} | {passed} | "
             f"{passed / len(group):.0%} | {_fmt(median, '.3f')} |"
         )
     return "\n".join(rows)

@@ -103,3 +103,59 @@ def test_ladder_table_shows_tier_and_recomputed_passes():
     assert "tier" in header and "recomputed passes" in header
     assert "analytic-screening" in table
     assert "| 9.0 |" in table
+
+
+def _based(task: str, status: str, baseline: str | None, *, where: str = "extra") -> dict:
+    rec = _rec(task, status, None)
+    if baseline is not None and where == "extra":
+        rec["usage"] = {"extra": {"baseline": baseline}}
+    elif baseline is not None:
+        rec["baseline"] = baseline
+    return rec
+
+
+def test_summary_groups_by_baseline_as_well_as_task_and_model():
+    """EdgeArray's b0..b4 on the same task and model are different conditions;
+    pooling them into one pass rate hides the ladder."""
+    from aedl.harness.report import summary_table
+
+    recs = [
+        _based("t1-001", "pass", "b0"),
+        _based("t1-001", "fail", "b2"),
+        _based("t1-001", "fail", "b2"),
+    ]
+    lines = summary_table(recs).splitlines()
+    assert "baseline" in lines[0]
+    body = [ln for ln in lines[2:]]
+    assert len(body) == 2
+    b0 = next(ln for ln in body if "| b0 |" in ln)
+    b2 = next(ln for ln in body if "| b2 |" in ln)
+    assert "| 1 | 1 | 100% |" in b0
+    assert "| 2 | 0 | 0% |" in b2
+
+
+def test_runs_table_has_a_baseline_column():
+    from aedl.harness.report import runs_table
+
+    table = runs_table([_based("t1-001", "pass", "b3"), _based("t1-001", "pass", None)])
+    lines = table.splitlines()
+    assert "baseline" in lines[0]
+    assert lines[1].count("|") == lines[0].count("|")
+    assert "| b3 |" in lines[2]
+    assert "| — |" in lines[3]
+
+
+def test_baseline_is_read_from_the_record_when_usage_has_none():
+    from aedl.harness.report import baseline_of
+
+    assert baseline_of(_based("t", "pass", "b1", where="record")) == "b1"
+    assert baseline_of(_based("t", "pass", "b4")) == "b4"
+    assert baseline_of(_based("t", "pass", None)) is None
+
+
+def test_report_without_baselines_keeps_its_columns():
+    from aedl.harness.report import runs_table, summary_table
+
+    recs = [_rec("t2-001", "pass", None)]
+    assert "baseline" not in summary_table(recs)
+    assert "baseline" not in runs_table(recs)
