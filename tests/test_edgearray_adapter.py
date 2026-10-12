@@ -282,14 +282,55 @@ def test_usage_maps_cache_write_tokens(t1, reference_project, tmp_path, monkeypa
     assert usage.num_turns == 4
 
 
-def test_missing_submission_json_is_recorded_not_raised(
+def test_missing_submission_json_builds_no_deliverable(
     t1, reference_project, tmp_path, monkeypatch
 ):
+    """Without submission.json the run did not finish, so a design left in the
+    data directory is not scored as its result."""
     fake = make_fake(tmp_path, reference_project, write_submission=False)
     monkeypatch.setenv(ENV_BIN, str(fake))
     record, _ = _run(t1, get_adapter("edgearray", baseline="b0"), tmp_path)
-    assert record.status == "pass"  # the deliverable comes from the data dir
+    assert record.status == "no_submission"
     assert "submission.json" in record.usage["extra"]["parse_error"]
+    assert "edgearray run failed; deliverable not built" in record.error
+    assert "deliverable" not in record.usage["extra"]
+
+
+def test_unparseable_submission_json_builds_no_deliverable(
+    t1, reference_project, tmp_path, monkeypatch
+):
+    fake = make_fake(
+        tmp_path,
+        reference_project,
+        extra_code='(ws / "submission.json").write_text("{not json")',
+    )
+    monkeypatch.setenv(ENV_BIN, str(fake))
+    record, _ = _run(t1, get_adapter("edgearray", baseline="b2", model="m"), tmp_path)
+    assert record.status == "no_submission"
+    assert "edgearray run failed; deliverable not built" in record.error
+    assert "unreadable" in record.usage["extra"]["parse_error"]
+
+
+def test_nonzero_exit_builds_no_deliverable_and_keeps_usage(
+    t1, reference_project, tmp_path, monkeypatch
+):
+    fake = make_fake(tmp_path, reference_project, extra_code="sys.exit(3)")
+    monkeypatch.setenv(ENV_BIN, str(fake))
+    record, _ = _run(t1, get_adapter("edgearray", baseline="b2", model="m"), tmp_path)
+    assert record.status == "no_submission"
+    assert "edgearray run failed; deliverable not built" in record.error
+    assert "exit code 3" in record.error
+    assert record.agent_returncode == 3
+    assert record.usage["input_tokens"] == 1200
+    assert "deliverable" not in record.usage["extra"]
+
+
+def test_nonzero_exit_builds_no_t4_bundle(t4, tmp_path, monkeypatch):
+    fake = make_fake(tmp_path, HERO_FIXTURE, extra_code="sys.exit(1)")
+    monkeypatch.setenv(ENV_BIN, str(fake))
+    work, info = _direct(t4, get_adapter("edgearray", baseline="b3", model="m"), tmp_path)
+    assert not (work / "submission").exists()
+    assert "edgearray run failed" in info.extra["deliverable_error"]
 
 
 # --- t1-001: the element DesignSpec ------------------------------------------------
@@ -459,6 +500,74 @@ def test_a_timed_out_run_builds_no_deliverable(t1, reference_project, tmp_path, 
     assert info.timed_out
     assert not (work / "design.yaml").exists()
     assert "deliverable" not in info.extra
+
+
+def _named_elements(tmp_path: Path, stamps: dict[str, str]) -> list[tuple[Path, str]]:
+    """One element.design per (design name -> manifest created_at)."""
+    out = []
+    for name, stamp in stamps.items():
+        path = tmp_path / f"{name}.yaml"
+        doc = yaml.safe_load(T1_REFERENCE.read_text())
+        doc["design"]["name"] = name
+        path.write_text(yaml.safe_dump(doc))
+        out.append((path, stamp))
+    return out
+
+
+def _latest_name(project: Path) -> str:
+    from aedl.harness.adapters.edgearray import _latest_element_payload
+
+    return _latest_element_payload(project)["design_spec"]["name"]
+
+
+@pytest.mark.parametrize(
+    "stamps,newest",
+    [
+        # Fractional seconds: "Z" sorts after "." as text but 10:00:00.5 is later.
+        ({"a": "2026-10-01T10:00:00Z", "b": "2026-10-01T10:00:00.5Z"}, "b"),
+        # A UTC offset: 12:00+02:00 is 10:00 UTC, earlier than 11:00Z.
+        ({"a": "2026-10-01T12:00:00+02:00", "b": "2026-10-01T11:00:00Z"}, "b"),
+        # Z and +00:00 spell the same instant; the later one still wins.
+        ({"a": "2026-10-01T10:00:00+00:00", "b": "2026-10-01T10:00:01Z"}, "b"),
+        # An unparseable stamp sorts oldest (as text "n" would sort newest).
+        ({"a": "2026-10-01T10:00:00Z", "b": "not-a-date"}, "a"),
+        # So does an empty one, and a manifest with no created_at.
+        ({"a": "2026-10-01T10:00:00Z", "b": ""}, "a"),
+    ],
+)
+def test_latest_element_compares_created_at_as_datetimes(tmp_path, stamps, newest):
+    project = make_project(tmp_path / "p", _named_elements(tmp_path, stamps), head=None)
+    assert _latest_name(project) == newest
+
+
+def test_latest_element_with_a_missing_created_at_sorts_oldest(tmp_path):
+    project = make_project(
+        tmp_path / "p",
+        _named_elements(tmp_path, {"a": "2026-10-01T10:00:00Z", "b": "x"}),
+        head=None,
+    )
+    for manifest in (project / "artifacts").glob("*/*/manifest.json"):
+        doc = json.loads(manifest.read_text())
+        if json.loads((manifest.parent / "payload.json").read_text())["design_spec"]["name"] == "b":
+            del doc["created_at"]
+            manifest.write_text(json.dumps(doc))
+    assert _latest_name(project) == "a"
+
+
+def test_latest_element_tie_goes_to_the_greater_artifact_id(tmp_path):
+    """Equal instants written two ways: the choice does not depend on glob order."""
+    project = make_project(
+        tmp_path / "p",
+        _named_elements(
+            tmp_path, {"a": "2026-10-01T10:00:00Z", "b": "2026-10-01T10:00:00+00:00"}
+        ),
+        head=None,
+    )
+    ids = {
+        json.loads((m.parent / "payload.json").read_text())["design_spec"]["name"]: m.parent.name
+        for m in (project / "artifacts").glob("*/*/manifest.json")
+    }
+    assert _latest_name(project) == max(ids, key=lambda name: ids[name])
 
 
 # --- t4-001: the requirements-to-board bundle --------------------------------------

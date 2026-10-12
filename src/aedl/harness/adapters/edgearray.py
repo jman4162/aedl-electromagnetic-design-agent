@@ -31,11 +31,13 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import shlex
 import shutil
 import sys
 import uuid
 from collections.abc import Callable
+from datetime import datetime, timezone
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -171,10 +173,21 @@ class EdgeArrayAdapter(CommandAdapter):
 
         # A timed-out run is not scored, so building from its half-written
         # design state would only suggest a deliverable that does not count.
+        # A run that exited non-zero, or left no readable submission.json, did
+        # not finish: whatever design state it left is not its result.
         if not info.timed_out:
-            _build_deliverable(
-                self._task_id(workspace), workspace, data_dir, project, extra, warnings
-            )
+            if info.returncode != 0:
+                reason = f"exit code {info.returncode}"
+            else:
+                reason = str(extra["parse_error"]) if "parse_error" in extra else ""
+            if reason:
+                message = f"edgearray run failed; deliverable not built ({reason})"
+                extra["deliverable_error"] = message
+                warnings.append(message)
+            else:
+                _build_deliverable(
+                    self._task_id(workspace), workspace, data_dir, project, extra, warnings
+                )
         if warnings:
             extra["warnings"] = warnings
         info.extra = extra
@@ -305,9 +318,37 @@ def _build_t1_001(data_dir: Path, project: str, workspace: Path) -> dict[str, An
     return {"files": ["design.yaml"], "source": source, "_warnings": warnings}
 
 
+_OLDEST = datetime.min.replace(tzinfo=timezone.utc)
+_FRACTION = re.compile(r"(\.\d+)")
+
+
+def _parse_created_at(value: Any) -> datetime:
+    """A manifest ``created_at`` as an aware datetime; anything unusable is the oldest.
+
+    Accepts ``Z`` or an explicit offset and any number of fractional digits
+    (``fromisoformat`` before Python 3.11 takes neither). A stamp without an
+    offset is read as UTC.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return _OLDEST
+    text = value.strip()
+    if text[-1] in "zZ":
+        text = text[:-1] + "+00:00"
+    text = _FRACTION.sub(lambda m: m.group(1)[:7].ljust(7, "0"), text, count=1)
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return _OLDEST
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
 def _latest_element_payload(proj: Path) -> dict[str, Any]:
-    """Payload of the element.design artifact with the latest manifest ``created_at``."""
-    candidates: list[tuple[str, str, Path]] = []
+    """Payload of the element.design artifact with the latest manifest ``created_at``.
+
+    Stamps are compared as datetimes, a missing or unparseable one sorts
+    oldest, and equal instants go to the greater artifact id.
+    """
+    candidates: list[tuple[datetime, str, Path]] = []
     for manifest_path in (proj / "artifacts").glob("*/*/manifest.json"):
         try:
             manifest = json.loads(manifest_path.read_text())
@@ -322,7 +363,7 @@ def _latest_element_payload(proj: Path) -> dict[str, Any]:
         ):
             candidates.append(
                 (
-                    str(manifest.get("created_at", "")),
+                    _parse_created_at(manifest.get("created_at")),
                     manifest_path.parent.name,
                     manifest_path.parent,
                 )
