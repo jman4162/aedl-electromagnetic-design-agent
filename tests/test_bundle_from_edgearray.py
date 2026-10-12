@@ -385,3 +385,128 @@ def test_node_of_the_wrong_kind_is_an_error(mod, fixture_copy, tmp_path):
     manifest.write_text(json.dumps(doc))
     with pytest.raises(mod["ConversionError"], match=r"expected 'element\.design'"):
         mod["convert"](fixture_copy, PROJECT, tmp_path / "out")
+
+
+# --- final review fixes ------------------------------------------------------------
+
+
+def _hero_verdicts(fixture_copy: Path, mutate) -> None:
+    payload = _artifact(fixture_copy, "e9", "payload.json")
+    doc = json.loads(payload.read_text())
+    mutate(doc)
+    payload.write_text(json.dumps(doc))
+
+
+def test_element_verdicts_in_the_hero_report_are_not_overwritten(mod, fixture_copy, tmp_path):
+    """A report that does judge ELEM-FOOTPRINT keeps its verdict; only the
+    requirements the report omits are filled in as unknown."""
+
+    def add(doc):
+        doc["verdicts"].append(
+            {
+                "id": "ELEM-FOOTPRINT",
+                "status": "pass",
+                "actual": 5.6,
+                "unit": "mm",
+                "engine": "edgearray-element@1.0.0",
+                "fidelity": "analytic",
+            }
+        )
+
+    _hero_verdicts(fixture_copy, add)
+    out = tmp_path / "out"
+    mod["convert"](fixture_copy, PROJECT, out)
+    verdicts = _bundle(out)["verdicts"]
+    assert verdicts["ELEM-FOOTPRINT"]["status"] == "pass"
+    assert verdicts["ELEM-FOOTPRINT"]["actual"] == 5.6
+    assert verdicts["ELEM-FOOTPRINT"]["provenance"]["capability"] == "edgearray-element@1.0.0"
+    assert verdicts["ELEM-S11-IN-BAND"]["status"] == "unknown"
+    record = json.loads((out / "conversion.json").read_text())
+    assert "ELEM-FOOTPRINT" not in record["element_requirements"]
+    assert "ELEM-S11-IN-BAND" in record["element_requirements"]
+
+
+@pytest.mark.parametrize("name", ["manifest.json", "payload.json"])
+def test_symlinked_manifest_or_payload_is_refused(mod, fixture_copy, tmp_path, name):
+    target = _artifact(fixture_copy, "ff", name)
+    moved = tmp_path / f"elsewhere-{name}"
+    target.rename(moved)
+    target.symlink_to(moved)
+    with pytest.raises(mod["ConversionError"], match="symlink"):
+        mod["convert"](fixture_copy, PROJECT, tmp_path / "out")
+
+
+def test_symlinked_artifact_shard_directory_is_refused(mod, fixture_copy, tmp_path):
+    shard = _artifact(fixture_copy, "ff", "payload.json").parent.parent
+    moved = tmp_path / "shard"
+    shard.rename(moved)
+    shard.symlink_to(moved)
+    with pytest.raises(mod["ConversionError"], match="symlink|not found"):
+        mod["convert"](fixture_copy, PROJECT, tmp_path / "out")
+
+
+def test_assumption_warning_ids_match_whole_ids_only(mod):
+    """The warning names REQ-GAIN-XCHECK; REQ-GAIN is only a prefix of it."""
+    ids, unmatched = mod["assumed_verdict_ids"](
+        ["REQ-GAIN-XCHECK was reworded to rest on assumed inputs"],
+        ["REQ-GAIN", "REQ-GAIN-XCHECK", "REQ-SLL"],
+    )
+    assert ids == {"REQ-GAIN-XCHECK"}
+    assert len(unmatched) == 1
+
+
+def test_assumption_warning_id_at_the_end_or_before_punctuation_matches(mod):
+    ids, _ = mod["assumed_verdict_ids"](
+        ["rests on assumed inputs: REQ-GAIN-XCHECK, (REQ-SLL)."],
+        ["REQ-GAIN", "REQ-GAIN-XCHECK", "REQ-SLL"],
+    )
+    assert ids == {"REQ-GAIN-XCHECK", "REQ-SLL"}
+
+
+def _siblings(path: Path) -> list[str]:
+    return sorted(p.name for p in path.parent.iterdir())
+
+
+def test_failed_conversion_leaves_no_output(mod, fixture_copy, tmp_path):
+    """The verdict error comes after the element and board are staged."""
+    _hero_verdicts(fixture_copy, lambda doc: doc["verdicts"][0].update(status="waived"))
+    out = tmp_path / "work" / "out"
+    out.parent.mkdir()
+    with pytest.raises(mod["ConversionError"], match="unmapped status"):
+        mod["convert"](fixture_copy, PROJECT, out)
+    assert not out.exists()
+    assert _siblings(out) == []
+
+
+def test_failed_conversion_leaves_an_existing_output_directory_untouched(
+    mod, fixture_copy, tmp_path
+):
+    _hero_verdicts(fixture_copy, lambda doc: doc["verdicts"][0].update(status="waived"))
+    out = tmp_path / "work" / "out"
+    out.mkdir(parents=True)
+    (out / "keep.txt").write_text("previous")
+    with pytest.raises(mod["ConversionError"]):
+        mod["convert"](fixture_copy, PROJECT, out)
+    assert sorted(p.name for p in out.iterdir()) == ["keep.txt"]
+    assert _siblings(out) == ["out"]
+
+
+def test_main_turns_any_exception_into_a_clean_error(mod, fixture_copy, tmp_path, capsys):
+    """A verdict with no id raises KeyError deep in the conversion."""
+    _hero_verdicts(fixture_copy, lambda doc: doc["verdicts"][0].pop("id"))
+    out = tmp_path / "work" / "out"
+    out.parent.mkdir()
+    code = mod["main"](["--data-dir", str(fixture_copy), "--project", PROJECT, "--out", str(out)])
+    captured = capsys.readouterr()
+    assert code == 1
+    assert captured.err.startswith("error:")
+    assert "Traceback" not in captured.err
+    assert _siblings(out) == []
+
+
+def test_successful_conversion_into_an_existing_directory_still_works(mod, tmp_path):
+    out = tmp_path / "out"
+    out.mkdir()
+    mod["convert"](FIXTURE, PROJECT, out)
+    assert (out / "bundle.json").is_file()
+    assert _siblings(out) == ["out"]

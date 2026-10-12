@@ -11,6 +11,10 @@ Usage::
 
     python scripts/bundle_from_edgearray.py --data-dir DATA_DIR --project ID --out DIR
 
+The bundle is built in a staging directory and moved to ``DIR`` only when the
+conversion succeeds; any failure prints ``error: ...``, exits 1 and leaves
+``DIR`` as it was. Symlinked artifact directories and files are refused.
+
 Field mappings
 --------------
 
@@ -91,7 +95,8 @@ in its text is labelled ``assumed`` as well.
 A verdict that is unverified or has no ``actual``/``engine`` gets
 ``provenance: null``. The hero's model has no element requirements, so
 ELEM-S11-IN-BAND and ELEM-FOOTPRINT are reported as ``unknown`` with a null
-actual: the hero did not judge them. The report's warnings, and which
+actual: the hero did not judge them. (A report that does carry a verdict for
+one of them keeps it; only absent ones are filled in.) The report's warnings, and which
 numbers rest on assumed inputs, are copied into ``conversion.json``.
 """
 
@@ -103,6 +108,7 @@ import json
 import re
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -132,6 +138,8 @@ class ConversionError(RuntimeError):
 
 
 def _load_json(path: Path) -> Any:
+    if path.is_symlink():
+        raise ConversionError(f"refusing symlink {path}")
     try:
         return json.loads(path.read_text())
     except (OSError, json.JSONDecodeError) as exc:
@@ -167,7 +175,12 @@ def artifact_dir(proj: Path, artifact_id: str) -> Path:
     if not _ARTIFACT_ID.fullmatch(artifact_id):
         raise ConversionError(f"artifact id {artifact_id!r} is not a 64-hex id")
     path = proj / "artifacts" / artifact_id[:2] / artifact_id
-    if path.is_symlink() or not path.is_dir():
+    if (
+        (proj / "artifacts").is_symlink()
+        or path.parent.is_symlink()
+        or path.is_symlink()
+        or not path.is_dir()
+    ):
         raise ConversionError(f"artifact {artifact_id} not found under {proj / 'artifacts'}")
     return path
 
@@ -262,6 +275,11 @@ def element_yaml(payload: dict[str, Any]) -> str:
     return yaml.safe_dump(doc, sort_keys=False)
 
 
+def _names(text: str, verdict_id: str) -> bool:
+    """Whether ``text`` contains ``verdict_id`` as a whole id, not as part of a longer one."""
+    return re.search(rf"(?<![\w-]){re.escape(verdict_id)}(?![\w-])", text) is not None
+
+
 def assumed_verdict_ids(warnings: list[Any], verdict_ids: list[str]) -> tuple[set[str], list[str]]:
     """Verdict ids to label ``assumed``, and the warnings the rule did not parse.
 
@@ -281,7 +299,7 @@ def assumed_verdict_ids(warnings: list[Any], verdict_ids: list[str]) -> tuple[se
             ids.update(match.group("ids").split(", "))
         elif "assum" in text.lower():
             unmatched.append(text)
-            ids.update(vid for vid in verdict_ids if vid in text)
+            ids.update(vid for vid in verdict_ids if _names(text, vid))
     return ids, unmatched
 
 
@@ -317,7 +335,27 @@ def _verdict(
 def convert(
     data_dir: Path, project: str, out_dir: Path, *, task_yaml: Path = TASK_YAML
 ) -> dict[str, Any]:
-    """Write the bundle into ``out_dir`` and return the conversion record."""
+    """Write the bundle into ``out_dir`` and return it.
+
+    The files are built in a staging directory next to ``out_dir`` and moved
+    into place only when the whole conversion has succeeded, so a failure
+    leaves no partial output. If ``out_dir`` already exists, the staged files
+    are copied over it; if the conversion fails it is not touched.
+    """
+    out_dir.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=f".{out_dir.name}.staging-", dir=out_dir.parent))
+    try:
+        bundle = _convert_into(data_dir, project, staging, task_yaml)
+        if out_dir.exists():
+            shutil.copytree(staging, out_dir, dirs_exist_ok=True)
+        else:
+            staging.rename(out_dir)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+    return bundle
+
+
+def _convert_into(data_dir: Path, project: str, out_dir: Path, task_yaml: Path) -> dict[str, Any]:
     proj = project_dir(data_dir, project)
     revision = head_revision(proj)
     classes = pa_classes(task_yaml)
@@ -366,7 +404,10 @@ def convert(
     verdicts: dict[str, Any] = {}
     for raw in raw_verdicts:
         verdicts[str(raw["id"])] = _verdict(raw, report_id, vocab_fidelities, assumed)
-    for rid in ELEMENT_REQUIREMENT_IDS:
+    # The hero's model has no element requirements today. If a report does
+    # judge one, its verdict stands; only the omitted ones are filled in.
+    filled_elements = [rid for rid in ELEMENT_REQUIREMENT_IDS if rid not in verdicts]
+    for rid in filled_elements:
         verdicts[rid] = {"status": "unknown", "actual": None, "unit": None, "provenance": None}
     verdicts = dict(sorted(verdicts.items()))
 
@@ -406,7 +447,12 @@ def convert(
             rid for rid, v in verdicts.items() if v["provenance"] and rid in assumed
         ),
         "unmatched_assumption_warnings": unmatched,
-        "element_requirements": ("not in the hero's model; reported as unknown with a null actual"),
+        "element_requirements": (
+            f"{', '.join(filled_elements)}: "
+            if len(filled_elements) < len(ELEMENT_REQUIREMENT_IDS)
+            else ""
+        )
+        + "not in the hero's model; reported as unknown with a null actual",
         "hero_warnings": list(raw_warnings),
     }
     (out_dir / "conversion.json").write_text(json.dumps(record, indent=2) + "\n")
@@ -423,6 +469,9 @@ def main(argv: list[str] | None = None) -> int:
         bundle = convert(args.data_dir, args.project, args.out)
     except ConversionError as exc:
         print(f"error: {exc}", file=sys.stderr)
+        return 1
+    except Exception as exc:  # a malformed hero output is an error message, not a traceback
+        print(f"error: conversion failed ({type(exc).__name__}: {exc})", file=sys.stderr)
         return 1
     record = json.loads((args.out / "conversion.json").read_text())
     for note in record["filled_in"]:
