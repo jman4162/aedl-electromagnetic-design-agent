@@ -301,7 +301,10 @@ def save(fig, name: str) -> Path:
         format="svg",
         bbox_inches="tight",
         facecolor=SURFACE,
-        metadata={"Date": None},
+        # Date and Creator are dropped: Creator embeds the matplotlib patch
+        # version, so a 3.11.1 -> 3.11.2 bump would change the bytes of an
+        # otherwise identical figure and fail the CI staleness check.
+        metadata={"Date": None, "Creator": None},
     )
     if WEBP_DIR is not None:
         # A raster copy for consumers that cannot take SVG. Sized by DPI so the
