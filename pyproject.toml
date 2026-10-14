@@ -28,7 +28,10 @@ dependencies = [
     "numpy>=2.0",
     "pyyaml>=6.0",
     # A benchmark's ground truth is version-sensitive; pin the minor line.
-    "phased-array-modeling>=1.4,<2.0",
+    # 1.5.0 changes pattern values the t2-001 and t3-001 references were
+    # calibrated on (docs/roadmap.md, "2026-10-14 PAM 1.5.0"), so the pin
+    # stays below 1.5 until those references are regenerated deliberately.
+    "phased-array-modeling>=1.4,<1.5",
 ]
 
 [project.optional-dependencies]

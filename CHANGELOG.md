@@ -127,6 +127,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `phased-array-modeling` is pinned to `>=1.4,<1.5` (was `<2.0`). Version 1.5.0
+  shifts the t2-001 sidelobe values (naive rounding −10.67 to −9.77 dB, the
+  phi = 0 case −12.32 to −12.71 dB, reference and 8° skirt now equal) and
+  t3-001's scanned sidelobe level by about 2.7 dB. The pin keeps the
+  calibration valid; see the 2026-10-14 entry in `docs/roadmap.md` for what a
+  recalibration involves.
 - `t2-001` retargeted from (30°, 0°) to (27°, 10°) and its sidelobe requirement
   tightened from −9 dB to −14 dB. At the original geometry the ideal phases sat
   uniformly half a quantization step off the 2-bit grid, so a global phase

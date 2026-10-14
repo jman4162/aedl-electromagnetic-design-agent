@@ -238,6 +238,43 @@ agree with it. With the metric fixed and the refinement unconstrained, the
 so grid sampling was never the problem. `scripts/verify_sidelobe_metric.py`
 reproduces the whole comparison.
 
+### 2026-10-14 — PAM 1.5.0 moves the calibrated sidelobe values
+
+CI on 3d5f071 went red because a fresh install resolved `phased-array-modeling`
+1.5.0 (the dependency allowed `>=1.4,<2.0`). The `t2-001` and
+`t3-001` reference values were calibrated on 1.4.x. With 1.5.0 installed, three
+`tests/test_t2_001.py` tests fail:
+
+| test | 1.4.x (calibrated) | 1.5.0 |
+|---|---|---|
+| `tracks_continuous_refinement`, naive 2-bit rounding | −10.67 dB | −9.7707 dB |
+| `handles_a_beam_steered_to_phi_zero` | −12.32 dB | −12.7133 dB |
+| `is_a_local_maximum_not_the_main_lobe_skirt` | reference −16.98 dB, 8° skirt 0.2 dB or more above it | reference and skirt both read −16.2282 dB, so the 0.2 dB gap is gone |
+
+`t3-001`'s scanned sidelobe level also moves by about 2.7 dB under 1.5.0. That
+figure comes from the CI investigation, not from a run recorded here; the t3
+tests need the `systems` extra and skip in CI.
+
+Fix applied: the dependency is now `phased-array-modeling>=1.4,<1.5`. The naive
+design moving from −10.67 to −9.77 dB matters beyond test values. The
+threshold was set by checking numerically that direct rounding misses −14 dB
+(rule 3 below), and a naive-design value that shifts by about 0.9 dB under a
+library upgrade changes that margin.
+
+Recalibrating to 1.5 means regenerating the reference values on purpose:
+
+1. Find which 1.5.0 change moves the pattern values (not yet
+   diagnosed) and confirm it is intended upstream.
+2. Regenerate the t2-001 reference solution and re-measure naive rounding,
+   reference, and the phi = 0 case with `scripts/verify_sidelobe_metric.py`;
+   re-check that the −14 dB threshold still separates naive from optimized.
+3. Redo the same for `t3-001`, and check whether `t3-002` reads any PAM value.
+4. Update the expected values and add a CHANGELOG entry that states old and new
+   numbers. Committed run bundles stay as they are; they record the version
+   they were scored on.
+
+The tolerances (`abs=0.02`, `abs=0.05`) stay unchanged; loosening them would hide the shift.
+
 ### Rules carried forward from t2-001
 
 1. Always include an element pattern. A bare array factor over the full sphere has a
