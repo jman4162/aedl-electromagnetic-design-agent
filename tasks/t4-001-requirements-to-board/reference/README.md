@@ -48,11 +48,10 @@ converter filled in, and the hero's warnings.
 Commands (2026-10-11):
 
 ```bash
-# EdgeArray: /Users/johnhodge/Documents/code/edgearray-studio, branch
-# feat/agentic-workspace, commit 5dfd8293b1dee91c6809f4fea87be681362ac89c.
+# EdgeArray Studio commit 5dfd8293b1dee91c6809f4fea87be681362ac89c.
 # The hero packages (workflows, core, adapters) had no local changes; the
 # working tree had unrelated edits to edgearray-agent.
-R=/Users/johnhodge/Documents/code/edgearray-studio
+R=$EDGEARRAY_STUDIO   # path to an EdgeArray Studio checkout with its .venv
 export PYTHONPATH=$(ls -d $R/python/*/src | tr '\n' ':')   # macOS hides the editable .pth files
 DD=$(mktemp -d)
 $R/.venv/bin/edgearray workflow hero --project aedl-hero --data-dir "$DD" --em-solver analytic
